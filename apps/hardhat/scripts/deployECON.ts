@@ -28,7 +28,7 @@ Outcome: Descriptive impact of the decision on the scenario, not showing exact m
 Metrics: Updated values post-decision, displayed after a choice is made.
 Summary: Reflective overview of the current state, emphasizing how past choices have influenced the story and hinting at future challenges.
 
-Absolutely Everything you say must be formatted like this. `;
+Absolutely Everything you say must be formatted like this.`;
 
 async function deployECON(oracleAddress: string) {
   const agent = await ethers.deployContract(
