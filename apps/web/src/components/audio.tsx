@@ -5,12 +5,22 @@ export const useDynamicMusic = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const schedulerIdRef = useRef<number | null>(null);
 
+  // const chordProgression = [
+  //   { name: 'Am', frequencies: [220.0, 261.63, 329.63] }, // A, C, E
+  //   { name: 'C', frequencies: [261.63, 329.63, 392.0] }, // C, E, G
+  //   { name: 'G', frequencies: [196.0, 246.94, 392.0] }, // G, B, G
+  //   { name: 'F', frequencies: [174.61, 220.0, 349.23] }, // F, A, F
+  // ];
   const chordProgression = [
     { name: 'Am', frequencies: [220.0, 261.63, 329.63] }, // A, C, E
     { name: 'C', frequencies: [261.63, 329.63, 392.0] }, // C, E, G
-    { name: 'G', frequencies: [196.0, 246.94, 392.0] }, // G, B, G
-    { name: 'F', frequencies: [174.61, 220.0, 349.23] }, // F, A, F
+    { name: 'F', frequencies: [174.61, 220.0, 349.23] }, // F, A, C
+    { name: 'G', frequencies: [196.0, 246.94, 392.0] }, // G, B, D
+    { name: 'Am', frequencies: [220.0, 261.63, 329.63] }, // A, C, E
   ];
+
+  // Additional passing tones or bass notes to consider
+  const bassMelody = [220.0, 261.63, 174.61, 196.0, 220.0]; // A, C, F, G, A
 
   const bpm = 80;
   const beatDuration = 60 / bpm;
@@ -25,23 +35,37 @@ export const useDynamicMusic = () => {
   }, []);
 
   const playChord = useCallback(
-    (chord: { frequencies: number[] }, time: number, duration: number) => {
+    (
+      chord: { frequencies: number[] },
+      bassNote: number,
+      time: number,
+      duration: number
+    ) => {
       if (!audioContextRef.current) return;
 
-      chord.frequencies.forEach((frequency) => {
-        const oscillator = audioContextRef.current!.createOscillator();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(frequency, time);
+      // Play bass note
+      const bassOsc = audioContextRef.current.createOscillator();
+      bassOsc.frequency.setValueAtTime(bassNote, time);
+      const bassGain = audioContextRef.current.createGain();
+      bassGain.gain.setValueAtTime(0.2, time);
+      bassGain.gain.linearRampToValueAtTime(0, time + duration - 0.1);
+      bassOsc.connect(bassGain).connect(audioContextRef.current.destination);
+      bassOsc.start(time);
+      bassOsc.stop(time + duration);
 
-        const gainNode = audioContextRef.current!.createGain();
-        gainNode.gain.setValueAtTime(0.1, time); // Set initial volume
-        gainNode.gain.linearRampToValueAtTime(0, time + duration - 0.1); // Fade out
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContextRef.current!.destination);
-
-        oscillator.start(time);
-        oscillator.stop(time + duration);
+      // Arpeggiate chord
+      chord.frequencies.forEach((freq, index) => {
+        const osc = audioContextRef.current!.createOscillator();
+        osc.frequency.setValueAtTime(freq, time + (index * duration) / 4);
+        const gain = audioContextRef.current!.createGain();
+        gain.gain.setValueAtTime(0.1, time + (index * duration) / 4);
+        gain.gain.linearRampToValueAtTime(
+          0,
+          time + ((index + 1) * duration) / 4
+        );
+        osc.connect(gain).connect(audioContextRef.current!.destination);
+        osc.start(time + (index * duration) / 4);
+        osc.stop(time + ((index + 1) * duration) / 4);
       });
     },
     []
@@ -52,7 +76,12 @@ export const useDynamicMusic = () => {
 
     const now = audioContextRef.current.currentTime;
     chordProgression.forEach((chord, index) => {
-      playChord(chord, now + index * measureDuration, measureDuration);
+      playChord(
+        chord,
+        bassMelody[index],
+        now + index * measureDuration,
+        measureDuration
+      );
     });
 
     // Schedule the next loop
