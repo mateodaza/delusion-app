@@ -3,14 +3,13 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useState, useEffect } from 'react';
 import {
-  http,
   useAccount,
   useReadContract,
-  useTransaction,
   useWatchContractEvent,
   useWriteContract,
 } from 'wagmi';
 import ECON from '../artifacts/ECON.sol/ECON.json';
+import { DynamicMusicPlayer } from '@/components/audio';
 
 const ECON_ABI = ECON.abi;
 const ECON_ADDRESS = '0x4c632d7244B456Eb0715132DfbE2955eb1861744';
@@ -87,6 +86,7 @@ const Home: NextPage = () => {
 
   return (
     <div className='min-h-screen bg-gradient-to-b from-blue-900 to-blue-700 text-white'>
+      <DynamicMusicPlayer />
       <Head>
         <title>ECON Game</title>
         <meta
