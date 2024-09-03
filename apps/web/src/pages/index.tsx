@@ -4,7 +4,8 @@ import ECON from '../artifacts/ECON.sol/ECON.json';
 import Dashboard from '@/components/dashboard';
 
 const ECON_ABI = ECON.abi;
-const ECON_ADDRESS = '0x4c632d7244B456Eb0715132DfbE2955eb1861744';
+// const ECON_ADDRESS = '0x4c632d7244B456Eb0715132DfbE2955eb1861744'; // initial version, clunky
+const ECON_ADDRESS = '0x1C49d41217866d6C42DA95b1cD502eD4C13834F6'; // with new features
 
 const Home: NextPage = () => {
   return (
