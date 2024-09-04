@@ -34,32 +34,64 @@ export const useGameState = (messageHistory: Message[] | undefined) => {
     if (message.role !== 'assistant') return null;
 
     try {
-      const reconstructJson = (str: string) => {
-        const props = ['Title', 'Challenge', 'Options', 'Metrics', 'Summary'];
-        const result: any = {};
+      const reconstructJson = (str: string): Partial<GameState> => {
+        const result: Partial<GameState> = {};
 
-        props.forEach((prop) => {
-          const regex = new RegExp(
-            `"${prop}":\\s*("(?:\\\\.|[^"\\\\])*"|\\[[^\\]]*\\]|{[^}]*})`
-          );
-          const match = str.match(regex);
-          if (match) {
-            try {
-              result[prop] = JSON.parse(match[1]);
-            } catch (e) {
-              result[prop] = match[1].replace(/^"|"$/g, '');
+        const parseProperty = (prop: keyof GameState, value: string) => {
+          try {
+            const parsed = JSON.parse(value);
+            switch (prop) {
+              case 'Title':
+              case 'Challenge':
+              case 'Summary':
+                result[prop] =
+                  typeof parsed === 'string'
+                    ? parsed
+                    : value.replace(/^"|"$/g, '');
+                break;
+              case 'Metrics':
+                result[prop] = typeof parsed === 'object' ? parsed : {};
+                break;
+              case 'Options':
+                result[prop] = Array.isArray(parsed) ? parsed : [];
+                break;
+            }
+          } catch (e) {
+            console.error(`Failed to parse ${prop}:`, e);
+            // Use type-appropriate default values
+            if (prop === 'Metrics') result[prop] = {};
+            else if (prop === 'Options') result[prop] = [];
+            else result[prop] = value.replace(/^"|"$/g, '');
+          }
+        };
+
+        ['Title', 'Challenge', 'Options', 'Metrics', 'Summary'].forEach(
+          (prop) => {
+            const regex = new RegExp(
+              `"${prop}":\\s*("(?:\\\\.|[^"\\\\])*"|\\[[^\\]]*\\]|{[^}]*})`
+            );
+            const match = str.match(regex);
+            if (match) {
+              parseProperty(prop as keyof GameState, match[1]);
             }
           }
-        });
+        );
 
         return result;
       };
 
-      const newGameState = reconstructJson(message.content[0].value.trim());
-      if (Object.keys(newGameState).length === 0) {
-        throw new Error('Failed to reconstruct game state');
-      }
-      return newGameState as GameState;
+      const partialGameState = reconstructJson(message.content[0].value.trim());
+
+      // Ensure required properties are present, use defaults if missing
+      const gameState: GameState = {
+        Challenge: partialGameState.Challenge || 'No challenge available',
+        Metrics: partialGameState.Metrics || {},
+        Options: partialGameState.Options || [],
+        Summary: partialGameState.Summary || 'No summary available',
+        ...(partialGameState.Title && { Title: partialGameState.Title }),
+      };
+
+      return gameState;
     } catch (error) {
       console.error('Failed to parse game state:', error);
       return null;

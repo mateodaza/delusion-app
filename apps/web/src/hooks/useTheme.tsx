@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const useTheme = () => {
-  const [isCyanTheme, setIsCyanTheme] = useState(false);
+  const [isCyanTheme, setIsCyanTheme] = useState(true);
 
   useEffect(() => {
     // Check if localStorage is available

@@ -25,11 +25,14 @@ import { Tooltip, TooltipProvider } from '@/shadcn/tooltip';
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip';
 import useTheme from '@/hooks/useTheme';
 import { useGameState } from '@/hooks/useGameState';
+import SentimentGauge from './sentimentGauge';
 
 interface Message {
   role: string;
   content: Array<{ contentType: string; value: string }>;
 }
+
+type LoadingState = 'idle' | 'sending' | 'mining' | 'fetching' | 'ready';
 
 interface ChatHistoryItem {
   id: string;
@@ -48,7 +51,10 @@ const Dashboard = ({
   const [userInput, setUserInput] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [customScenario, setCustomScenario] = useState('');
+  const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [loadingState, setLoadingState] = useState<LoadingState>('idle');
+
   const [loading, setIsLoading] = useState(false);
 
   const { isCyanTheme, toggleTheme } = useTheme();
@@ -84,17 +90,37 @@ const Dashboard = ({
     useWaitForTransactionReceipt({
       hash,
     });
+
   const isLoading =
     loading || isConfirming || messageHistoryLoading || txIsPending;
 
   useEffect(() => {
+    if (isConfirmed && isCreatingNewChat) {
+      fetchLatestChat().then(() => {
+        setIsCreatingNewChat(false);
+      });
+    }
+  }, [isConfirmed, isCreatingNewChat]);
+
+  useEffect(() => {
     if (isConfirmed && hash) {
+      setLoadingState('fetching');
       fetchLatestChat();
     }
   }, [isConfirmed, hash]);
 
   useEffect(() => {
+    if (messageHistory && messageHistory.length >= 3 && currentStep.gameState) {
+      setLoadingState('ready');
+    }
+  }, [messageHistory, currentStep.gameState]);
+
+  useEffect(() => {
     const fetchChatHistory = async () => {
+      if (!address) {
+        setChatHistory([]);
+        return;
+      }
       try {
         setIsLoading(true);
         const logs: any = await publicClient?.getContractEvents({
@@ -105,27 +131,33 @@ const Dashboard = ({
           toBlock: 'latest',
         });
 
-        const newChatHistory = logs.map((log: any) => ({
-          id: log.args?.chatId?.toString() ?? '',
-          hash: log?.transactionHash ?? '',
-          owner: log.args?.owner ?? '',
-          timestamp: new Date(Number(log.blockNumber) * 1000).toLocaleString(),
-        }));
+        const newChatHistory = logs
+          .filter((log: any) => log.args?.owner === address) // Filter chats by the current wallet address
+          .map((log: any) => ({
+            id: log.args?.chatId?.toString() ?? '',
+            hash: log?.transactionHash ?? '',
+            owner: log.args?.owner ?? '',
+            timestamp: new Date(
+              Number(log.blockNumber) * 1000
+            ).toLocaleString(),
+          }));
 
         setChatHistory(newChatHistory.reverse());
-        setIsLoading(false);
       } catch (error) {
         console.error('Failed to fetch chat history:', error);
+      } finally {
         setIsLoading(false);
       }
     };
 
-    fetchChatHistory();
-  }, [ECON_ABI, ECON_ADDRESS, publicClient]);
+    if (address) {
+      fetchChatHistory();
+    }
+  }, [ECON_ABI, ECON_ADDRESS, publicClient, address]);
 
   const fetchLatestChat = async () => {
     try {
-      setIsLoading(true);
+      setLoadingState('fetching');
       const logs: any = await publicClient?.getContractEvents({
         address: ECON_ADDRESS,
         eventName: 'ChatCreated',
@@ -139,18 +171,20 @@ const Dashboard = ({
         const newChatId = latestChat.args?.chatId?.toString();
         if (newChatId) {
           setChatId(newChatId);
-          refetchMessages();
+          await refetchMessages();
         }
       }
-      setIsLoading(false);
     } catch (error) {
-      setIsLoading(false);
+      console.error('Failed to fetch latest chat:', error);
     }
+    // Note: We're not setting the state to 'ready' here.
+    // The useEffect watching messageHistory and currentStep.gameState will handle that.
   };
 
   const handleStartGame = async () => {
     if (isConnected) {
       try {
+        setIsCreatingNewChat(true);
         await writeContract({
           address: ECON_ADDRESS,
           abi: ECON_ABI,
@@ -163,16 +197,16 @@ const Dashboard = ({
         });
       } catch (error) {
         console.error('Failed to start game:', error);
+        setIsCreatingNewChat(false);
       }
     }
   };
-
   const handleSendMessage = async (option?: string) => {
     if (isConnected && chatId !== null) {
       try {
-        setIsLoading(true);
-
+        setLoadingState('sending');
         const messageToSend = option || userInput;
+        if (!messageToSend) return;
         await writeContract({
           address: ECON_ADDRESS,
           abi: ECON_ABI,
@@ -181,11 +215,10 @@ const Dashboard = ({
         });
         setUserInput('');
         setSelectedOption(null);
-        await refetchMessages();
+        setLoadingState('mining');
       } catch (error) {
         console.error('Failed to send message:', error);
-      } finally {
-        setIsLoading(false);
+        setLoadingState('ready');
       }
     }
   };
@@ -244,12 +277,17 @@ const Dashboard = ({
   };
 
   const renderCurrentMessage = () => {
-    if (!currentStep.gameState) return null;
-    if (isLoading) {
+    if (loadingState !== 'ready' || !currentStep.gameState) {
       return (
         <div className='text-center text-xl'>
-          <Terminal className='inline-block mr-2' />
-          Processing your decision...
+          <Terminal className='inline-block mr-2' />x
+          {loadingState === 'idle' && 'Initializing DELUSION interface...'}
+          {loadingState === 'sending' && 'Sending your decision...'}
+          {loadingState === 'mining' && 'Mining transaction...'}
+          {loadingState === 'fetching' && 'Updating game state...'}
+          {loadingState === 'ready' &&
+            !currentStep.gameState &&
+            'Preparing game state...'}
         </div>
       );
     }
@@ -303,23 +341,14 @@ const Dashboard = ({
           </p>
         </div>
 
-        {currentStep.gameState.Metrics &&
-          renderMetrics(currentStep.gameState.Metrics)}
-
-        {currentStep.gameState.Summary && (
-          <div className='mb-4'>
-            <h2
-              className={
-                getThemeClass('text-green-300', 'text-cyan-300') +
-                ' text-xl font-bold mb-2'
-              }
-            >
-              Summary:
-            </h2>
-            <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
-              {currentStep.gameState.Summary}
-            </p>
-          </div>
+        {currentStep.gameState.Metrics && (
+          <>
+            <SentimentGauge
+              metrics={currentStep.gameState.Metrics}
+              getThemeClass={getThemeClass}
+            />
+            {renderMetrics(currentStep.gameState.Metrics)}
+          </>
         )}
 
         {isLastStep ? (
@@ -377,14 +406,6 @@ const Dashboard = ({
               </div>
             )}
             <div className='mt-4'>
-              <h2
-                className={
-                  getThemeClass('text-green-300', 'text-cyan-300') +
-                  ' text-lg font-bold mb-2'
-                }
-              >
-                Your Decision:
-              </h2>
               <div
                 className={
                   getThemeClass(
@@ -442,6 +463,12 @@ const Dashboard = ({
   };
 
   const renderMetrics = (metrics: Record<string, number | string>) => {
+    const getMetricColor = (value: number) => {
+      if (value >= 70) return 'text-green-500';
+      if (value >= 40) return 'text-yellow-500';
+      return 'text-red-500';
+    };
+
     return (
       <div className='mb-4'>
         <h3
@@ -470,7 +497,11 @@ const Dashboard = ({
                 {key}:
               </strong>{' '}
               <span
-                className={getThemeClass('text-green-100', 'text-cyan-100')}
+                className={
+                  typeof value === 'number'
+                    ? getMetricColor(value)
+                    : getThemeClass('text-green-100', 'text-cyan-100')
+                }
               >
                 {value}
               </span>
@@ -502,7 +533,7 @@ const Dashboard = ({
               'bg-green-900 bg-opacity-30 border-green-500',
               'bg-cyan-900 bg-opacity-30 border-[#00bcbcd9]'
             ) +
-            ' w-full max-w-[300px] p-4 mb-4 lg:mb-0 lg:mr-4 rounded-lg border-2 overflow-y-auto'
+            ' w-full max-w-[300px] p-4 mt-10 mb-4 lg:mb-0 lg:mr-4 rounded-lg border-2 overflow-y-auto'
           }
         >
           <h2
@@ -511,23 +542,26 @@ const Dashboard = ({
               ' text-xl font-bold mb-4'
             }
           >
-            Past Scenarios
+            {address ? 'Past Scenarios' : '±?___----__:)'}
           </h2>
-          <ul className='space-y-2'>
-            {chatHistory.map((chat: any) => (
-              <li
-                key={chat.id}
-                className={
-                  getThemeClass('hover:bg-green-800', 'hover:bg-cyan-800') +
-                  ' cursor-pointer hover:bg-opacity-40 p-2 rounded'
-                }
-                onClick={() => handleChatSelect(chat.id)}
-              >
-                <Clock className='inline-block mr-2' size={16} />
-                Scenario {chat?.hash.slice(-4)}
-              </li>
-            ))}
-          </ul>
+          {address && !!chatHistory && chatHistory?.length > 0 && (
+            <ul className='space-y-2'>
+              {chatHistory.map((chat: any) => (
+                <li
+                  key={chat.id}
+                  className={`
+          ${getThemeClass('hover:bg-green-800', 'hover:bg-cyan-800')}
+          cursor-pointer hover:bg-opacity-40 p-2 rounded
+          ${chat.id === chatId ? 'border-b-2 border-current' : ''}
+        `}
+                  onClick={() => handleChatSelect(chat.id)}
+                >
+                  <Clock className='inline-block mr-2' size={16} />
+                  Scenario {chat?.hash.slice(-8)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Main content */}
@@ -571,9 +605,12 @@ const Dashboard = ({
             }
           >
             {!isConnected ? (
-              <p className='text-center text-xl'>
-                Please connect your wallet to play.
-              </p>
+              <p className='text-center text-xl mt-8'>Get a wallet to start.</p>
+            ) : isCreatingNewChat ? (
+              <div className='text-center text-xl'>
+                <Terminal className='inline-block mr-2' />
+                Creating new scenario...
+              </div>
             ) : !chatId ? (
               <div className='h-full flex flex-col items-center justify-center space-y-8 p-6'>
                 <p
@@ -584,7 +621,7 @@ const Dashboard = ({
                 >
                   Hello friend
                   <br /> <br />
-                  Dare to challenge any reality, be our guest. <br /> This game
+                  Dare to challenge any reality? be our guest. <br /> This game
                   has no end.
                   <br /> Check your metrics and see how they evolve.
                   <br />
@@ -624,6 +661,21 @@ const Dashboard = ({
                   Hint: We will challenge any scenario you propose. Be creative.
                 </p>
               </div>
+            ) : loadingState === 'idle' ? (
+              <div className='text-center text-xl'>
+                <Terminal className='inline-block mr-2' />
+                Initializing DELUSION interface...
+              </div>
+            ) : loadingState !== 'ready' || !currentStep.gameState ? (
+              <div className='text-center text-xl'>
+                <Terminal className='inline-block mr-2' />
+                {loadingState === 'sending' && 'Sending your decision...'}
+                {loadingState === 'mining' && 'Mining transaction...'}
+                {loadingState === 'fetching' && 'Updating game state...'}
+                {loadingState === 'ready' &&
+                  !currentStep.gameState &&
+                  'Preparing game state...'}
+              </div>
             ) : messageHistory && messageHistory.length >= 3 ? (
               <>
                 {renderCompactStepper()}
@@ -632,7 +684,7 @@ const Dashboard = ({
             ) : (
               <div className='text-center text-xl'>
                 <Terminal className='inline-block mr-2' />
-                Initializing DELUSION interface...
+                Unexpected state. Please refresh the page.
               </div>
             )}
           </div>

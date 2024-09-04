@@ -11,10 +11,10 @@ const Home: NextPage = () => {
   return (
     <div>
       <Head>
-        <title>ECON</title>
+        <title>DELUSION</title>
         <meta
           name='description'
-          content='ECON - A strategic decision-making game on the blockchain'
+          content='DELUSION - A strategic decision-making game on the blockchain'
         />
         <link rel='icon' href='/favicon.ico' />
       </Head>
