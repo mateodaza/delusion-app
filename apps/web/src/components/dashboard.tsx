@@ -23,20 +23,12 @@ import {
 } from 'lucide-react';
 import { Tooltip, TooltipProvider } from '@/shadcn/tooltip';
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip';
+import useTheme from '@/hooks/useTheme';
+import { useGameState } from '@/hooks/useGameState';
 
 interface Message {
   role: string;
   content: Array<{ contentType: string; value: string }>;
-}
-
-interface GameState {
-  Challenge: string;
-  Metrics: Record<string, number | string>;
-  Options: Array<{
-    Description: string;
-    Outcome: string;
-  }>;
-  Summary: string;
 }
 
 interface ChatHistoryItem {
@@ -54,12 +46,10 @@ const Dashboard = ({
 }) => {
   const [chatId, setChatId] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
-  const [gameState, setGameState] = useState<GameState | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
-  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [customScenario, setCustomScenario] = useState('');
 
-  const [isCyanTheme, setIsCyanTheme] = useState(false);
+  const { isCyanTheme, toggleTheme } = useTheme();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
 
@@ -70,30 +60,20 @@ const Dashboard = ({
     args: chatId ? [BigInt(chatId)] : undefined,
   }) as { data: Message[] | undefined; refetch: () => void };
 
+  const {
+    currentStep,
+    totalSteps,
+    goToPreviousStep,
+    goToNextStep,
+    isFirstStep,
+    isLastStep,
+  } = useGameState(messageHistory);
+
   const { data: hash, writeContract } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash,
     });
-
-  const fetchLatestChat = async () => {
-    const logs: any = await publicClient?.getContractEvents({
-      address: ECON_ADDRESS,
-      eventName: 'ChatCreated',
-      abi: ECON_ABI,
-      fromBlock: 34042583n,
-      toBlock: 'latest',
-    });
-
-    if (logs && logs.length > 0) {
-      const latestChat = logs[logs.length - 1];
-      const newChatId = latestChat.args?.chatId?.toString();
-      if (newChatId) {
-        setChatId(newChatId);
-        refetchMessages();
-      }
-    }
-  };
 
   useEffect(() => {
     if (isConfirmed && hash) {
@@ -124,19 +104,24 @@ const Dashboard = ({
     fetchChatHistory();
   }, [ECON_ABI, ECON_ADDRESS, publicClient]);
 
-  useEffect(() => {
-    if (messageHistory && messageHistory.length > 0) {
-      setCurrentMessageIndex(messageHistory.length - 1);
-      const lastMessage = messageHistory[messageHistory.length - 1];
-      if (lastMessage.role === 'assistant') {
-        try {
-          setGameState(JSON.parse(lastMessage.content[0].value));
-        } catch (error) {
-          console.error('Failed to parse game state:', error);
-        }
+  const fetchLatestChat = async () => {
+    const logs: any = await publicClient?.getContractEvents({
+      address: ECON_ADDRESS,
+      eventName: 'ChatCreated',
+      abi: ECON_ABI,
+      fromBlock: 34042583n,
+      toBlock: 'latest',
+    });
+
+    if (logs && logs.length > 0) {
+      const latestChat = logs[logs.length - 1];
+      const newChatId = latestChat.args?.chatId?.toString();
+      if (newChatId) {
+        setChatId(newChatId);
+        refetchMessages();
       }
     }
-  }, [messageHistory]);
+  };
 
   const handleStartGame = async () => {
     if (isConnected) {
@@ -151,7 +136,6 @@ const Dashboard = ({
               : 'Start a new game. reply with JSON only',
           ],
         });
-        // The chatId will be set in the fetchLatestChat function after confirmation
       } catch (error) {
         console.error('Failed to start game:', error);
       }
@@ -186,24 +170,6 @@ const Dashboard = ({
   const renderCompactStepper = () => {
     if (!messageHistory || messageHistory.length < 3) return null;
 
-    // Calculate the number of complete turns (user + assistant pairs)
-    const totalSteps = Math.floor((messageHistory.length - 1) / 2);
-
-    // Calculate the current step based on the currentMessageIndex
-    const currentStep = Math.floor((currentMessageIndex - 1) / 2);
-
-    const goToPreviousStep = () => {
-      // Move back two messages to get to the previous user message
-      setCurrentMessageIndex((prev) => Math.max(1, prev - 2));
-    };
-
-    const goToNextStep = () => {
-      // Move forward two messages to get to the next user message
-      setCurrentMessageIndex((prev) =>
-        Math.min(messageHistory.length - 2, prev + 2)
-      );
-    };
-
     return (
       <div
         className='flex items-center justify-between mb-4 p-2 rounded-lg bg-opacity-50'
@@ -216,7 +182,7 @@ const Dashboard = ({
       >
         <button
           onClick={goToPreviousStep}
-          disabled={currentStep <= 0}
+          disabled={isFirstStep}
           className={getThemeClass(
             'text-green-300 disabled:text-green-700',
             'text-cyan-300 disabled:text-cyan-700'
@@ -225,11 +191,11 @@ const Dashboard = ({
           <ChevronLeft size={20} />
         </button>
         <span className={getThemeClass('text-green-300', 'text-cyan-300')}>
-          Turn {currentStep + 1} of {totalSteps}
+          Turn {currentStep.index + 1} of {totalSteps}
         </span>
         <button
           onClick={goToNextStep}
-          disabled={currentStep >= totalSteps - 1}
+          disabled={isLastStep}
           className={getThemeClass(
             'text-green-300 disabled:text-green-700',
             'text-cyan-300 disabled:text-cyan-700'
@@ -240,68 +206,12 @@ const Dashboard = ({
       </div>
     );
   };
+
   const renderCurrentMessage = () => {
-    if (!messageHistory || messageHistory.length < 3) return null;
-
-    // Ensure we're always starting with a user message (odd index)
-    let currentIndex = Math.max(1, currentMessageIndex);
-    if (currentIndex % 2 === 0) currentIndex--;
-
-    const userMessage = messageHistory[currentIndex];
-    const assistantMessage = messageHistory[currentIndex + 1];
-
-    if (
-      !userMessage ||
-      !assistantMessage ||
-      userMessage.role !== 'user' ||
-      assistantMessage.role !== 'assistant'
-    ) {
-      console.error('Unexpected message structure:', {
-        userMessage,
-        assistantMessage,
-      });
-      return (
-        <div className='error-message'>Error: Unexpected message structure</div>
-      );
-    }
-    let gameState;
-    try {
-      let jsonString = assistantMessage.content[0].value.trim();
-      // Attempt to reconstruct the JSON object
-      const reconstructJson = (str: any) => {
-        const props = ['Title', 'Challenge', 'Options', 'Metrics', 'Summary'];
-        const result: any = {};
-
-        props.forEach((prop) => {
-          const regex = new RegExp(
-            `"${prop}":\\s*("(?:\\\\.|[^"\\\\])*"|\\[[^\\]]*\\]|{[^}]*})`
-          );
-          const match = str.match(regex);
-          if (match) {
-            try {
-              result[prop] = JSON.parse(match[1]);
-            } catch (e) {
-              result[prop] = match[1].replace(/^"|"$/g, '');
-            }
-          }
-        });
-
-        return result;
-      };
-
-      gameState = reconstructJson(jsonString);
-      if (Object.keys(gameState).length === 0) {
-        throw new Error('Failed to reconstruct game state');
-      }
-    } catch (error) {
-      console.error('Failed to parse game state:', error);
-      return <div className='error-message'>Error: Invalid game state</div>;
-    }
-
-    // Render the game state
+    if (!currentStep.gameState) return null;
     return (
       <>
-        {gameState.Title && (
+        {currentStep.gameState.Title && (
           <div className='mb-4'>
             <h2
               className={
@@ -309,12 +219,12 @@ const Dashboard = ({
                 ' text-2xl font-bold mb-2'
               }
             >
-              {gameState.Title}
+              {currentStep.gameState.Title}
             </h2>
           </div>
         )}
 
-        {gameState.Challenge && (
+        {currentStep.gameState.Challenge && (
           <div className='mb-4'>
             <h2
               className={
@@ -329,7 +239,7 @@ const Dashboard = ({
                 getThemeClass('text-green-100', 'text-cyan-100') + ' text-lg'
               }
             >
-              {gameState.Challenge}
+              {currentStep.gameState.Challenge}
             </p>
           </div>
         )}
@@ -344,13 +254,14 @@ const Dashboard = ({
             Current Scenario:
           </h2>
           <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
-            {userMessage.content[0].value}
+            {currentStep.userMessage}
           </p>
         </div>
 
-        {gameState.Metrics && renderMetrics(gameState.Metrics)}
+        {currentStep.gameState.Metrics &&
+          renderMetrics(currentStep.gameState.Metrics)}
 
-        {gameState.Summary && (
+        {currentStep.gameState.Summary && (
           <div className='mb-4'>
             <h2
               className={
@@ -361,61 +272,123 @@ const Dashboard = ({
               Summary:
             </h2>
             <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
-              {gameState.Summary}
+              {currentStep.gameState.Summary}
             </p>
           </div>
         )}
 
-        {currentMessageIndex === messageHistory.length - 2 &&
-          gameState.Options && (
-            <div className='mb-4'>
+        {isLastStep ? (
+          <>
+            {currentStep.gameState.Options && (
+              <div className='mb-4'>
+                <h2
+                  className={
+                    getThemeClass('text-green-300', 'text-cyan-300') +
+                    ' text-xl font-bold mb-2'
+                  }
+                >
+                  Strategic Options:
+                </h2>
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                  {currentStep.gameState.Options.map((option, index) => (
+                    <TooltipProvider key={index}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={
+                              getThemeClass(
+                                'bg-green-800 bg-opacity-40 hover:bg-green-700',
+                                'bg-cyan-800 bg-opacity-40 hover:bg-cyan-700'
+                              ) +
+                              ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
+                            }
+                          >
+                            {getOptionIcon(index)}
+                            <span
+                              className={getThemeClass(
+                                'text-green-100',
+                                'text-cyan-100'
+                              )}
+                            >
+                              {option.Description}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          className={
+                            getThemeClass('bg-black', 'bg-gray-800') +
+                            ' p-2 max-w-xs'
+                          }
+                        >
+                          <p className='text-sm'>{option.Outcome}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className='mt-4'>
               <h2
                 className={
                   getThemeClass('text-green-300', 'text-cyan-300') +
-                  ' text-xl font-bold mb-2'
+                  ' text-lg font-bold mb-2'
                 }
               >
-                Strategic Options:
+                Your Decision:
               </h2>
-              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                {gameState.Options.map((option: any, index: any) => (
-                  <TooltipProvider key={index}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={
-                            getThemeClass(
-                              'bg-green-800 bg-opacity-40 hover:bg-green-700',
-                              'bg-cyan-800 bg-opacity-40 hover:bg-cyan-700'
-                            ) +
-                            ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
-                          }
-                        >
-                          {getOptionIcon(index)}
-                          <span
-                            className={getThemeClass(
-                              'text-green-100',
-                              'text-cyan-100'
-                            )}
-                          >
-                            {option.Description}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent
-                        className={
-                          getThemeClass('bg-black', 'bg-gray-800') +
-                          ' p-2 max-w-xs'
-                        }
-                      >
-                        <p className='text-sm'>{option.Outcome}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
+              <div
+                className={
+                  getThemeClass(
+                    'bg-green-800 bg-opacity-40',
+                    'bg-cyan-800 bg-opacity-40'
+                  ) + ' flex items-center rounded-lg overflow-hidden'
+                }
+              >
+                <input
+                  type='text'
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  className={
+                    getThemeClass(
+                      'bg-transparent py-2 px-3 text-green-100 placeholder-green-500',
+                      'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
+                    ) + ' flex-grow focus:outline-none'
+                  }
+                  placeholder='Input your strategic decision...'
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className={
+                    getThemeClass(
+                      'bg-green-600 hover:bg-green-500',
+                      'bg-cyan-600 hover:bg-cyan-500'
+                    ) +
+                    ' text-white font-bold py-2 px-4 transition duration-300 ease-in-out'
+                  }
+                >
+                  <Send size={20} />
+                </button>
               </div>
             </div>
-          )}
+          </>
+        ) : (
+          !isFirstStep && (
+            <div className='mt-4'>
+              <h2
+                className={
+                  getThemeClass('text-green-300', 'text-cyan-300') +
+                  ' text-lg font-bold mb-2'
+                }
+              >
+                Your Decision:
+              </h2>
+              <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
+                {currentStep.userMessage}
+              </p>
+            </div>
+          )
+        )}
       </>
     );
   };
@@ -528,7 +501,7 @@ const Dashboard = ({
             <div className='flex items-center'>
               <ConnectButton />
               <button
-                onClick={() => setIsCyanTheme(!isCyanTheme)}
+                onClick={() => toggleTheme()}
                 className={
                   getThemeClass(
                     'bg-green-700 hover:bg-green-600',
@@ -607,52 +580,6 @@ const Dashboard = ({
               <>
                 {renderCompactStepper()}
                 {renderCurrentMessage()}
-
-                {currentMessageIndex === messageHistory.length - 2 && (
-                  <div className='mt-4'>
-                    <h2
-                      className={
-                        getThemeClass('text-green-300', 'text-cyan-300') +
-                        ' text-lg font-bold mb-2'
-                      }
-                    >
-                      Your Decision:
-                    </h2>
-                    <div
-                      className={
-                        getThemeClass(
-                          'bg-green-800 bg-opacity-40',
-                          'bg-cyan-800 bg-opacity-40'
-                        ) + ' flex items-center rounded-lg overflow-hidden'
-                      }
-                    >
-                      <input
-                        type='text'
-                        value={userInput}
-                        onChange={(e) => setUserInput(e.target.value)}
-                        className={
-                          getThemeClass(
-                            'bg-transparent py-2 px-3 text-green-100 placeholder-green-500',
-                            'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
-                          ) + ' flex-grow focus:outline-none'
-                        }
-                        placeholder='Input your strategic decision...'
-                      />
-                      <button
-                        onClick={handleSendMessage}
-                        className={
-                          getThemeClass(
-                            'bg-green-600 hover:bg-green-500',
-                            'bg-cyan-600 hover:bg-cyan-500'
-                          ) +
-                          ' text-white font-bold py-2 px-4 transition duration-300 ease-in-out'
-                        }
-                      >
-                        <Send size={20} />
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               <div className='text-center text-xl'>
