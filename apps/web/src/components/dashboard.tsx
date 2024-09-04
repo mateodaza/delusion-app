@@ -48,17 +48,23 @@ const Dashboard = ({
   const [userInput, setUserInput] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [customScenario, setCustomScenario] = useState('');
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [loading, setIsLoading] = useState(false);
 
   const { isCyanTheme, toggleTheme } = useTheme();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
 
-  const { data: messageHistory, refetch: refetchMessages } = useReadContract({
+  const {
+    data: messageHistory,
+    refetch: refetchMessages,
+    isLoading: messageHistoryLoading,
+  } = useReadContract({
     address: ECON_ADDRESS,
     abi: ECON_ABI,
     functionName: 'getMessageHistory',
     args: chatId ? [BigInt(chatId)] : undefined,
-  }) as { data: Message[] | undefined; refetch: () => void };
+  }) as any;
 
   const {
     currentStep,
@@ -69,11 +75,17 @@ const Dashboard = ({
     isLastStep,
   } = useGameState(messageHistory);
 
-  const { data: hash, writeContract } = useWriteContract();
+  const {
+    data: hash,
+    isPending: txIsPending,
+    writeContract,
+  } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash,
     });
+  const isLoading =
+    loading || isConfirming || messageHistoryLoading || txIsPending;
 
   useEffect(() => {
     if (isConfirmed && hash) {
@@ -83,6 +95,37 @@ const Dashboard = ({
 
   useEffect(() => {
     const fetchChatHistory = async () => {
+      try {
+        setIsLoading(true);
+        const logs: any = await publicClient?.getContractEvents({
+          address: ECON_ADDRESS,
+          eventName: 'ChatCreated',
+          abi: ECON_ABI,
+          fromBlock: 34042583n,
+          toBlock: 'latest',
+        });
+
+        const newChatHistory = logs.map((log: any) => ({
+          id: log.args?.chatId?.toString() ?? '',
+          hash: log?.transactionHash ?? '',
+          owner: log.args?.owner ?? '',
+          timestamp: new Date(Number(log.blockNumber) * 1000).toLocaleString(),
+        }));
+
+        setChatHistory(newChatHistory.reverse());
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch chat history:', error);
+        setIsLoading(false);
+      }
+    };
+
+    fetchChatHistory();
+  }, [ECON_ABI, ECON_ADDRESS, publicClient]);
+
+  const fetchLatestChat = async () => {
+    try {
+      setIsLoading(true);
       const logs: any = await publicClient?.getContractEvents({
         address: ECON_ADDRESS,
         eventName: 'ChatCreated',
@@ -91,35 +134,17 @@ const Dashboard = ({
         toBlock: 'latest',
       });
 
-      const newChatHistory = logs.map((log: any) => ({
-        id: log.args?.chatId?.toString() ?? '',
-        hash: log?.transactionHash ?? '',
-        owner: log.args?.owner ?? '',
-        timestamp: new Date(Number(log.blockNumber) * 1000).toLocaleString(),
-      }));
-
-      setChatHistory(newChatHistory.reverse());
-    };
-
-    fetchChatHistory();
-  }, [ECON_ABI, ECON_ADDRESS, publicClient]);
-
-  const fetchLatestChat = async () => {
-    const logs: any = await publicClient?.getContractEvents({
-      address: ECON_ADDRESS,
-      eventName: 'ChatCreated',
-      abi: ECON_ABI,
-      fromBlock: 34042583n,
-      toBlock: 'latest',
-    });
-
-    if (logs && logs.length > 0) {
-      const latestChat = logs[logs.length - 1];
-      const newChatId = latestChat.args?.chatId?.toString();
-      if (newChatId) {
-        setChatId(newChatId);
-        refetchMessages();
+      if (logs && logs.length > 0) {
+        const latestChat = logs[logs.length - 1];
+        const newChatId = latestChat.args?.chatId?.toString();
+        if (newChatId) {
+          setChatId(newChatId);
+          refetchMessages();
+        }
       }
+      setIsLoading(false);
+    } catch (error) {
+      setIsLoading(false);
     }
   };
 
@@ -142,25 +167,36 @@ const Dashboard = ({
     }
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (option?: string) => {
     if (isConnected && chatId !== null) {
       try {
+        setIsLoading(true);
+
+        const messageToSend = option || userInput;
         await writeContract({
           address: ECON_ADDRESS,
           abi: ECON_ABI,
           functionName: 'addMessage',
-          args: [userInput, BigInt(chatId)],
+          args: [messageToSend, BigInt(chatId)],
         });
         setUserInput('');
-        refetchMessages();
+        setSelectedOption(null);
+        await refetchMessages();
       } catch (error) {
         console.error('Failed to send message:', error);
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
   const handleChatSelect = (selectedChatId: string) => {
     setChatId(selectedChatId);
+  };
+
+  const handleOptionSelect = (option: string) => {
+    setSelectedOption(option);
+    handleSendMessage(option);
   };
 
   const getThemeClass = (greenClass: string, cyanClass: string) => {
@@ -209,6 +245,15 @@ const Dashboard = ({
 
   const renderCurrentMessage = () => {
     if (!currentStep.gameState) return null;
+    if (isLoading) {
+      return (
+        <div className='text-center text-xl'>
+          <Terminal className='inline-block mr-2' />
+          Processing your decision...
+        </div>
+      );
+    }
+
     return (
       <>
         {currentStep.gameState.Title && (
@@ -302,6 +347,9 @@ const Dashboard = ({
                               ) +
                               ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
                             }
+                            onClick={() => {
+                              handleOptionSelect(option.Description);
+                            }}
                           >
                             {getOptionIcon(index)}
                             <span
@@ -355,10 +403,10 @@ const Dashboard = ({
                       'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
                     ) + ' flex-grow focus:outline-none'
                   }
-                  placeholder='Input your strategic decision...'
+                  placeholder='Or input your own strategic decision...'
                 />
                 <button
-                  onClick={handleSendMessage}
+                  onClick={() => handleSendMessage()}
                   className={
                     getThemeClass(
                       'bg-green-600 hover:bg-green-500',
