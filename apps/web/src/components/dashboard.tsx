@@ -27,6 +27,7 @@ import useTheme from '@/hooks/useTheme';
 import { useGameState } from '@/hooks/useGameState';
 import SentimentGauge from './sentimentGauge';
 import { useImageGenerator } from '@/hooks/useImageGenerator';
+import Link from 'next/link';
 
 type LoadingState = 'idle' | 'sending' | 'mining' | 'fetching' | 'ready';
 
@@ -48,6 +49,9 @@ const Dashboard = ({
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [customScenario, setCustomScenario] = useState('');
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
+  const [newChatTransactionHash, setNewChatTransactionHash] = useState<
+    `0x${string}` | null
+  >(null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
 
@@ -84,11 +88,10 @@ const Dashboard = ({
     isPending: txIsPending,
     writeContract,
   } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash,
-    });
-
+  const hashData = useWaitForTransactionReceipt({
+    hash,
+  });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = hashData;
   const isLoading =
     loading || isConfirming || messageHistoryLoading || txIsPending;
 
@@ -109,8 +112,19 @@ const Dashboard = ({
 
   useEffect(() => {
     if (isConfirmed && hash) {
-      setLoadingState('fetching');
-      fetchLatestChat();
+      const updateAfterConfirmation = async () => {
+        setLoadingState('fetching');
+        const updatedHistory = await fetchChatHistory();
+        if (updatedHistory.length > 0) {
+          const latestChatId = updatedHistory[0].id;
+          setChatId(latestChatId);
+          await refetchMessages();
+        }
+        setIsCreatingNewChat(false);
+        setLoadingState('ready');
+      };
+
+      updateAfterConfirmation();
     }
   }, [isConfirmed, hash]);
 
@@ -120,41 +134,46 @@ const Dashboard = ({
     }
   }, [messageHistory, currentStep.gameState]);
 
+  const fetchChatHistory = async () => {
+    if (!address) {
+      setChatHistory([]);
+      return [];
+    }
+    try {
+      setIsLoading(true);
+      setLoadingState('fetching');
+      console.log({ publicClient, ECON_ADDRESS, ECON_ABI });
+      const logs: any = await publicClient?.getContractEvents({
+        address: ECON_ADDRESS,
+        eventName: 'ChatCreated',
+        abi: ECON_ABI,
+        fromBlock: 34042583n,
+        toBlock: 'latest',
+      });
+
+      const newChatHistory = logs
+        .filter((log: any) => log.args?.owner === address)
+        .map((log: any) => ({
+          id: log.args?.chatId?.toString() ?? '',
+          hash: log?.transactionHash ?? '',
+          owner: log.args?.owner ?? '',
+          timestamp: new Date(Number(log.blockNumber) * 1000).toLocaleString(),
+        }));
+
+      const sortedHistory = newChatHistory.reverse();
+      setChatHistory(sortedHistory);
+      setLoadingState('ready');
+      return sortedHistory;
+    } catch (error) {
+      console.error('Failed to fetch chat history:', error);
+      return [];
+    } finally {
+      setIsLoading(false);
+      setLoadingState('ready');
+      setIsCreatingNewChat(false);
+    }
+  };
   useEffect(() => {
-    const fetchChatHistory = async () => {
-      if (!address) {
-        setChatHistory([]);
-        return;
-      }
-      try {
-        setIsLoading(true);
-        const logs: any = await publicClient?.getContractEvents({
-          address: ECON_ADDRESS,
-          eventName: 'ChatCreated',
-          abi: ECON_ABI,
-          fromBlock: 34042583n,
-          toBlock: 'latest',
-        });
-
-        const newChatHistory = logs
-          .filter((log: any) => log.args?.owner === address) // Filter chats by the current wallet address
-          .map((log: any) => ({
-            id: log.args?.chatId?.toString() ?? '',
-            hash: log?.transactionHash ?? '',
-            owner: log.args?.owner ?? '',
-            timestamp: new Date(
-              Number(log.blockNumber) * 1000
-            ).toLocaleString(),
-          }));
-
-        setChatHistory(newChatHistory.reverse());
-      } catch (error) {
-        console.error('Failed to fetch chat history:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     if (address) {
       fetchChatHistory();
     }
@@ -190,6 +209,7 @@ const Dashboard = ({
     if (isConnected) {
       try {
         setIsCreatingNewChat(true);
+        setLoadingState('sending');
         await writeContract({
           address: ECON_ADDRESS,
           abi: ECON_ABI,
@@ -200,9 +220,16 @@ const Dashboard = ({
               : 'Start a new game. reply with JSON only',
           ],
         });
+        // The transaction has been sent, but not yet mined
+        setLoadingState('mining');
+
+        setTimeout(() => {
+          fetchChatHistory();
+        }, 5000);
       } catch (error) {
         console.error('Failed to start game:', error);
         setIsCreatingNewChat(false);
+        setLoadingState('idle');
       }
     }
   };
@@ -606,15 +633,17 @@ const Dashboard = ({
           <div className='flex justify-between items-center mb-4'>
             <div className='flex flex-row text-center items-center'>
               <p>As long as there is</p>
-              <h1
-                className={
-                  getThemeClass('text-green-300', 'text-cyan-300') +
-                  ' text-4xl font-bold px-2'
-                }
-              >
-                {' '}
-                DELUSION
-              </h1>
+              <Link href='/'>
+                <h1
+                  className={
+                    getThemeClass('text-green-300', 'text-cyan-300') +
+                    ' text-4xl font-bold px-2'
+                  }
+                >
+                  {' '}
+                  DELUSION
+                </h1>
+              </Link>
               <p>there is hope</p>
             </div>
             <div className='flex items-center'>
