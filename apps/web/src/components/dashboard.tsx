@@ -26,9 +26,8 @@ import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip';
 import useTheme from '@/hooks/useTheme';
 import { useGameState } from '@/hooks/useGameState';
 import SentimentGauge from './sentimentGauge';
-import { useImageGenerator } from '@/hooks/useImageGenerator';
 import Link from 'next/link';
-import { useImageGeneratorDex } from '@/hooks/useImageGeneratorDex';
+import ScenarioVisualization from './scenarioVisualization';
 
 type LoadingState = 'idle' | 'sending' | 'mining' | 'fetching' | 'ready';
 
@@ -50,17 +49,11 @@ const Dashboard = ({
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [customScenario, setCustomScenario] = useState('');
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
-  const [newChatTransactionHash, setNewChatTransactionHash] = useState<
-    `0x${string}` | null
-  >(null);
+
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
 
   const [loading, setIsLoading] = useState(false);
-
-  // const { images, isGenerating, generateImage } = useImageGenerator();
-  const { images, isGenerating, generateImage } = useImageGeneratorDex();
-
   const { isCyanTheme, toggleTheme } = useTheme();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
@@ -97,13 +90,6 @@ const Dashboard = ({
   const isLoading =
     loading || isConfirming || messageHistoryLoading || txIsPending;
 
-  const handleGenerateImage = async () => {
-    if (currentStep.gameState) {
-      const imagePrompt = `${currentStep.gameState.Title}: ${currentStep.gameState.Challenge}`;
-      await generateImage(currentStep.index, imagePrompt);
-    }
-  };
-
   useEffect(() => {
     if (isConfirmed && isCreatingNewChat) {
       fetchLatestChat().then(() => {
@@ -136,7 +122,7 @@ const Dashboard = ({
     }
   }, [messageHistory, currentStep.gameState]);
 
-  const fetchChatHistory = async () => {
+  const fetchChatHistory = async (goFirstChat?: boolean) => {
     if (!address) {
       setChatHistory([]);
       return [];
@@ -144,7 +130,7 @@ const Dashboard = ({
     try {
       setIsLoading(true);
       setLoadingState('fetching');
-      console.log({ publicClient, ECON_ADDRESS, ECON_ABI });
+
       const logs: any = await publicClient?.getContractEvents({
         address: ECON_ADDRESS,
         eventName: 'ChatCreated',
@@ -165,6 +151,10 @@ const Dashboard = ({
       const sortedHistory = newChatHistory.reverse();
       setChatHistory(sortedHistory);
       setLoadingState('ready');
+      if (goFirstChat) {
+        // go to first chst
+        handleChatSelect(sortedHistory[0].id);
+      }
       return sortedHistory;
     } catch (error) {
       console.error('Failed to fetch chat history:', error);
@@ -226,7 +216,7 @@ const Dashboard = ({
         setLoadingState('mining');
 
         setTimeout(() => {
-          fetchChatHistory();
+          fetchChatHistory(true);
         }, 5000);
       } catch (error) {
         console.error('Failed to start game:', error);
@@ -360,40 +350,10 @@ const Dashboard = ({
             </p>
           </div>
         )}
-
-        <div className='mt-4'>
-          <h2
-            className={
-              getThemeClass('text-green-300', 'text-cyan-300') +
-              ' text-2xl font-bold mb-2'
-            }
-          >
-            Scenario Visualization:
-          </h2>
-          {images[currentStep.index] ? (
-            <img
-              src={images[currentStep.index]}
-              alt={`Scenario: ${currentStep.gameState.Title}`}
-              className='w-full max-w-md mx-auto rounded-lg shadow-lg mb-4'
-            />
-          ) : (
-            <div className='flex justify-center space-x-4'>
-              <button
-                onClick={handleGenerateImage}
-                disabled={isGenerating}
-                className={
-                  getThemeClass(
-                    'bg-green-700 hover:bg-green-600 border-green-400',
-                    'bg-cyan-700 hover:bg-cyan-600 border-[#00bcbcd9]'
-                  ) +
-                  ' text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2'
-                }
-              >
-                {isGenerating ? 'Generating...' : 'Generate Image'}
-              </button>
-            </div>
-          )}
-        </div>
+        <ScenarioVisualization
+          currentStep={currentStep}
+          getThemeClass={getThemeClass}
+        />
 
         <div className='mb-4'>
           <h2
