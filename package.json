@@ -1,5 +1,5 @@
 {
-  "name": "econ-app",
+  "name": "delusion-app",
   "private": true,
   "scripts": {
     "build": "turbo build",

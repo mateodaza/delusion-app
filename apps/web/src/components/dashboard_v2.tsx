@@ -26,7 +26,11 @@ import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip';
 import useTheme from '@/hooks/useTheme';
 import { useGameState } from '@/hooks/useGameState';
 import SentimentGauge from './sentimentGauge';
-import { useImageGenerator } from '@/hooks/useImageGenerator';
+
+interface Message {
+  role: string;
+  content: Array<{ contentType: string; value: string }>;
+}
 
 type LoadingState = 'idle' | 'sending' | 'mining' | 'fetching' | 'ready';
 
@@ -36,24 +40,19 @@ interface ChatHistoryItem {
   timestamp: string;
 }
 
-const Dashboard = ({
-  ECON_ABI,
-  ECON_ADDRESS,
-}: {
-  ECON_ABI: any;
-  ECON_ADDRESS: `0x${string}`;
-}) => {
+const Dashboard = ({ ABI, ADDRESS }: { ABI: any; ADDRESS: `0x${string}` }) => {
   const [chatId, setChatId] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [customScenario, setCustomScenario] = useState('');
   const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
+  const [images, setImages] = useState<{ [key: string]: string }>({});
+  const [lastFetchedMessageIndex, setLastFetchedMessageIndex] =
+    useState<number>(-1);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [loadingState, setLoadingState] = useState<LoadingState>('idle');
 
   const [loading, setIsLoading] = useState(false);
-
-  const { images, isGenerating, generateImage } = useImageGenerator();
 
   const { isCyanTheme, toggleTheme } = useTheme();
   const { address, isConnected } = useAccount();
@@ -64,8 +63,8 @@ const Dashboard = ({
     refetch: refetchMessages,
     isLoading: messageHistoryLoading,
   } = useReadContract({
-    address: ECON_ADDRESS,
-    abi: ECON_ABI,
+    address: ADDRESS,
+    abi: ABI,
     functionName: 'getMessageHistory',
     args: chatId ? [BigInt(chatId)] : undefined,
   }) as any;
@@ -78,6 +77,37 @@ const Dashboard = ({
     isFirstStep,
     isLastStep,
   } = useGameState(messageHistory);
+  useEffect(() => {
+    console.log('Updated images:', images);
+  }, [images]);
+  const { data: imageData, refetch: refetchImages } = useReadContract({
+    address: ADDRESS,
+    abi: ABI,
+    functionName: 'getAllChatImages',
+    args: chatId
+      ? [BigInt(chatId), BigInt(messageHistory?.length - 1 || 0)]
+      : undefined,
+  }) as any;
+
+  console.log('Chat ID:', chatId);
+  console.log('Message History Length:', messageHistory?.length);
+  console.log('Raw imageData:', imageData);
+
+  if (imageData) {
+    const [indices, urls, count] = imageData;
+    console.log('Image count from getAllChatImages:', count);
+    console.log('Indices:', indices);
+    console.log('URLs:', urls);
+  }
+
+  const { data: imageCount } = useReadContract({
+    address: ADDRESS,
+    abi: ABI,
+    functionName: 'getImageCount',
+    args: chatId ? [BigInt(chatId)] : undefined,
+  }) as any;
+
+  console.log('Image Count from getImageCount:', imageCount);
 
   const {
     data: hash,
@@ -91,13 +121,6 @@ const Dashboard = ({
 
   const isLoading =
     loading || isConfirming || messageHistoryLoading || txIsPending;
-
-  const handleGenerateImage = async () => {
-    if (currentStep.gameState) {
-      const imagePrompt = `${currentStep.gameState.Title}: ${currentStep.gameState.Challenge}`;
-      await generateImage(currentStep.index, imagePrompt);
-    }
-  };
 
   useEffect(() => {
     if (isConfirmed && isCreatingNewChat) {
@@ -121,6 +144,10 @@ const Dashboard = ({
   }, [messageHistory, currentStep.gameState]);
 
   useEffect(() => {
+    fetchAndUpdateImages();
+  }, [messageHistory, currentStep, chatId]);
+
+  useEffect(() => {
     const fetchChatHistory = async () => {
       if (!address) {
         setChatHistory([]);
@@ -129,9 +156,9 @@ const Dashboard = ({
       try {
         setIsLoading(true);
         const logs: any = await publicClient?.getContractEvents({
-          address: ECON_ADDRESS,
+          address: ADDRESS,
           eventName: 'ChatCreated',
-          abi: ECON_ABI,
+          abi: ABI,
           fromBlock: 34042583n,
           toBlock: 'latest',
         });
@@ -158,15 +185,49 @@ const Dashboard = ({
     if (address) {
       fetchChatHistory();
     }
-  }, [ECON_ABI, ECON_ADDRESS, publicClient, address]);
+  }, [ABI, ADDRESS, publicClient, address]);
+
+  const fetchAndUpdateImages = async () => {
+    if (chatId && currentStep) {
+      await refetchImages();
+      if (imageData) {
+        const [indices, urls] = imageData;
+        const newImages = { ...images };
+        indices.forEach((index: bigint, i: number) => {
+          newImages[Number(index)] = urls[i];
+        });
+        setImages(newImages);
+      }
+    }
+  };
+
+  const checkSpecificImage = async (messageIndex: number) => {
+    if (chatId && publicClient) {
+      const { data: imageInfo }: any = await publicClient.readContract({
+        address: ADDRESS,
+        abi: ABI,
+        functionName: 'debugImageStorage',
+        args: [BigInt(chatId), BigInt(messageIndex)],
+      });
+      console.log(`Image for message ${messageIndex}:`, imageInfo);
+    }
+  };
+
+  useEffect(() => {
+    if (messageHistory) {
+      messageHistory.forEach((_: any, index: any) => {
+        checkSpecificImage(index);
+      });
+    }
+  }, [messageHistory, chatId]);
 
   const fetchLatestChat = async () => {
     try {
       setLoadingState('fetching');
       const logs: any = await publicClient?.getContractEvents({
-        address: ECON_ADDRESS,
+        address: ADDRESS,
         eventName: 'ChatCreated',
-        abi: ECON_ABI,
+        abi: ABI,
         fromBlock: 34042583n,
         toBlock: 'latest',
       });
@@ -190,22 +251,62 @@ const Dashboard = ({
     if (isConnected) {
       try {
         setIsCreatingNewChat(true);
-        await writeContract({
-          address: ECON_ADDRESS,
-          abi: ECON_ABI,
+        const initialMessage = customScenario
+          ? `${customScenario}.`
+          : 'Start a new game. reply with JSON only';
+
+        const result: any = await writeContract({
+          address: ADDRESS,
+          abi: ABI,
           functionName: 'startChat',
-          args: [
-            customScenario
-              ? `${customScenario}.`
-              : 'Start a new game. reply with JSON only',
-          ],
+          args: [initialMessage],
         });
+        console.log({ result });
+        // Wait for the transaction to be mined
+        await publicClient?.waitForTransactionReceipt({ hash: result?.hash });
+
+        // Fetch the latest chat ID
+        await fetchLatestChat();
+
+        // Wait for the AI's response to be generated
+        // This might take some time, so we'll need to poll or wait for an event
+        await waitForAIResponse();
+
+        // Now request an image for the AI's response (which is the second message, index 1)
+        if (chatId) {
+          const aiResponseContent = messageHistory[1].content[0].value;
+          await writeContract({
+            address: ADDRESS,
+            abi: ABI,
+            functionName: 'requestImage',
+            args: [BigInt(chatId), 1n, aiResponseContent],
+          });
+        }
+
+        setIsCreatingNewChat(false);
       } catch (error) {
-        console.error('Failed to start game:', error);
+        console.error('Failed to start game or request initial image:', error);
         setIsCreatingNewChat(false);
       }
     }
   };
+
+  const waitForAIResponse = async () => {
+    const maxAttempts = 10;
+    const delayBetweenAttempts = 2000; // 2 seconds
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await refetchMessages();
+      if (messageHistory && messageHistory.length >= 2) {
+        // AI response is available
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayBetweenAttempts));
+    }
+
+    throw new Error('Timeout waiting for AI response');
+  };
+
   const handleSendMessage = async (option?: string) => {
     if (isConnected && chatId !== null) {
       try {
@@ -213,16 +314,28 @@ const Dashboard = ({
         const messageToSend = option || userInput;
         if (!messageToSend) return;
         await writeContract({
-          address: ECON_ADDRESS,
-          abi: ECON_ABI,
+          address: ADDRESS,
+          abi: ABI,
           functionName: 'addMessage',
           args: [messageToSend, BigInt(chatId)],
         });
         setUserInput('');
         setSelectedOption(null);
         setLoadingState('mining');
+
+        // Wait for the message to be mined and the state to update
+        await new Promise((resolve) => setTimeout(resolve, 5000)); // Adjust this delay as needed
+
+        // Request image generation for the new message
+        const currentMessageIndex = messageHistory ? messageHistory.length : 0;
+        await writeContract({
+          address: ADDRESS,
+          abi: ABI,
+          functionName: 'requestImage',
+          args: [BigInt(chatId), BigInt(currentMessageIndex), messageToSend],
+        });
       } catch (error) {
-        console.error('Failed to send message:', error);
+        console.error('Failed to send message or request image:', error);
         setLoadingState('ready');
       }
     }
@@ -297,6 +410,32 @@ const Dashboard = ({
       );
     }
 
+    const handleGenerateImage = async () => {
+      if (isConnected && chatId !== null && currentStep) {
+        try {
+          setLoadingState('sending');
+          await writeContract({
+            address: ADDRESS,
+            abi: ABI,
+            functionName: 'requestImage',
+            args: [
+              BigInt(chatId),
+              BigInt(currentStep.index),
+              currentStep.userMessage,
+            ],
+          });
+          setLoadingState('mining');
+          // Wait for the image to be generated and fetched
+          await new Promise((resolve) => setTimeout(resolve, 5000)); // Adjust this delay as needed
+          await fetchAndUpdateImages();
+          setLoadingState('ready');
+        } catch (error) {
+          console.error('Failed to generate image:', error);
+          setLoadingState('ready');
+        }
+      }
+    };
+
     return (
       <>
         {currentStep.gameState.Title && (
@@ -309,6 +448,30 @@ const Dashboard = ({
             >
               {currentStep.gameState.Title}
             </h2>
+          </div>
+        )}
+        {images[currentStep.index] ? (
+          <div className='mb-4'>
+            <img
+              src={images[currentStep.index]}
+              alt={`Generated image for step ${currentStep.index + 1}`}
+              className='max-w-full h-auto rounded-lg shadow-lg'
+            />
+          </div>
+        ) : (
+          <div className='mb-4'>
+            <button
+              onClick={handleGenerateImage}
+              className={
+                getThemeClass(
+                  'bg-green-600 hover:bg-green-500',
+                  'bg-cyan-600 hover:bg-cyan-500'
+                ) +
+                ' text-white font-bold py-2 px-4 rounded transition duration-300 ease-in-out'
+              }
+            >
+              Generate Image for this scenario
+            </button>
           </div>
         )}
 
@@ -331,38 +494,6 @@ const Dashboard = ({
             </p>
           </div>
         )}
-
-        <div className='mt-4'>
-          <h2
-            className={
-              getThemeClass('text-green-300', 'text-cyan-300') +
-              ' text-2xl font-bold mb-2'
-            }
-          >
-            Scenario Visualization:
-          </h2>
-          {images[currentStep.index] ? (
-            <img
-              src={images[currentStep.index]}
-              alt={`Scenario: ${currentStep.gameState.Title}`}
-              className='w-full max-w-md mx-auto rounded-lg shadow-lg mb-4'
-            />
-          ) : (
-            <button
-              onClick={handleGenerateImage}
-              disabled={isGenerating}
-              className={
-                getThemeClass(
-                  'bg-green-700 hover:bg-green-600 border-green-400',
-                  'bg-cyan-700 hover:bg-cyan-600 border-[#00bcbcd9]'
-                ) +
-                ' text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2'
-              }
-            >
-              {isGenerating ? 'Generating...' : 'Generate Image for This Step'}
-            </button>
-          )}
-        </div>
 
         <div className='mb-4'>
           <h2
