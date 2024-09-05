@@ -28,6 +28,7 @@ import { useGameState } from '@/hooks/useGameState';
 import SentimentGauge from './sentimentGauge';
 import { useImageGenerator } from '@/hooks/useImageGenerator';
 import Link from 'next/link';
+import { useImageGeneratorDex } from '@/hooks/useImageGeneratorDex';
 
 type LoadingState = 'idle' | 'sending' | 'mining' | 'fetching' | 'ready';
 
@@ -57,7 +58,8 @@ const Dashboard = ({
 
   const [loading, setIsLoading] = useState(false);
 
-  const { images, isGenerating, generateImage } = useImageGenerator();
+  // const { images, isGenerating, generateImage } = useImageGenerator();
+  const { images, isGenerating, generateImage } = useImageGeneratorDex();
 
   const { isCyanTheme, toggleTheme } = useTheme();
   const { address, isConnected } = useAccount();
@@ -375,19 +377,21 @@ const Dashboard = ({
               className='w-full max-w-md mx-auto rounded-lg shadow-lg mb-4'
             />
           ) : (
-            <button
-              onClick={handleGenerateImage}
-              disabled={isGenerating}
-              className={
-                getThemeClass(
-                  'bg-green-700 hover:bg-green-600 border-green-400',
-                  'bg-cyan-700 hover:bg-cyan-600 border-[#00bcbcd9]'
-                ) +
-                ' text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2'
-              }
-            >
-              {isGenerating ? 'Generating...' : 'Generate Image for This Step'}
-            </button>
+            <div className='flex justify-center space-x-4'>
+              <button
+                onClick={handleGenerateImage}
+                disabled={isGenerating}
+                className={
+                  getThemeClass(
+                    'bg-green-700 hover:bg-green-600 border-green-400',
+                    'bg-cyan-700 hover:bg-cyan-600 border-[#00bcbcd9]'
+                  ) +
+                  ' text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2'
+                }
+              >
+                {isGenerating ? 'Generating...' : 'Generate Image'}
+              </button>
+            </div>
           )}
         </div>
 
