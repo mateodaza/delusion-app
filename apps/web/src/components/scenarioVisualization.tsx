@@ -1,9 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useImageGeneratorDex } from '@/hooks/useImageGeneratorDex';
 
 const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
-  const { images, isGenerating, generateImage, generationStatus } =
-    useImageGeneratorDex();
+  const {
+    images,
+    isGenerating,
+    generateImage,
+    generationStatus,
+    setCurrentMessageId,
+  } = useImageGeneratorDex();
+
+  useEffect(() => {
+    if (currentStep.id) {
+      setCurrentMessageId(currentStep.id);
+    }
+  }, [currentStep.id, setCurrentMessageId]);
 
   const handleGenerateImage = async () => {
     if (currentStep.gameState) {
@@ -22,10 +33,10 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
       >
         Scenario Visualization:
       </h2>
-      {images[currentStep.index] ? (
+      {images[currentStep.id] ? (
         <img
-          src={images[currentStep.index]}
-          alt={`Scenario: ${currentStep.gameState.Title}`}
+          src={images[currentStep.id]}
+          alt='Generated scenario'
           className='w-full max-w-md mx-auto rounded-lg shadow-lg mb-4'
         />
       ) : (

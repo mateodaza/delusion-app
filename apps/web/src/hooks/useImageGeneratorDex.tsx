@@ -7,7 +7,6 @@ import {
   custom,
   parseAbi,
 } from 'viem';
-import { kv } from '@vercel/kv';
 
 const contractABI = parseAbi([
   'function initializeDalleCall(string memory message) public returns (uint)',
@@ -17,7 +16,7 @@ const contractABI = parseAbi([
 
 const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470';
 
-export function useImageGeneratorDex() {
+export function useImageGeneratorDex(initialMessageId?: string) {
   const [images, setImages] = useState<Record<string, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string>('');
@@ -27,6 +26,9 @@ export function useImageGeneratorDex() {
   const [walletClient, setWalletClient] = useState<ReturnType<
     typeof createWalletClient
   > | null>(null);
+  const [currentMessageId, setCurrentMessageId] = useState<string | undefined>(
+    initialMessageId
+  );
 
   useEffect(() => {
     const initializeClients = async () => {
@@ -53,41 +55,73 @@ export function useImageGeneratorDex() {
     initializeClients();
   }, []);
 
-  const checkExistingImage = async (
-    messageId: string
-  ): Promise<string | null> => {
-    try {
-      const existingImage = await kv.get<string>(`image:${messageId}`);
-      return existingImage || null;
-    } catch (error) {
-      console.error('Error checking existing image:', error);
-      return null;
-    }
-  };
+  const checkExistingImage = useCallback(
+    async (messageId: string): Promise<string | null> => {
+      try {
+        const response = await fetch(`/api/check-image?messageId=${messageId}`);
+        console.log({ response });
+        if (response.ok) {
+          const data = await response.json();
+          return data.imageUrl;
+        }
+        return null;
+      } catch (error) {
+        console.error('Error checking existing image:', error);
+        return null;
+      }
+    },
+    []
+  );
 
   const saveImageToDatabase = async (messageId: string, imageUrl: string) => {
     try {
-      await kv.set(`image:${messageId}`, imageUrl);
+      await fetch('/api/save-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messageId, imageUrl }),
+      });
     } catch (error) {
       console.error('Error saving image to database:', error);
     }
   };
 
-  const generateImage = useCallback(
-    async (messageId: string, prompt: string) => {
-      if (!publicClient || !walletClient) {
-        console.error('Clients not initialized');
-        return null;
-      }
-
-      // Check if image already exists in the database
+  const setExistingImage = useCallback(
+    async (messageId: string) => {
       const existingImage = await checkExistingImage(messageId);
       if (existingImage) {
         setImages((prevImages) => ({
           ...prevImages,
           [messageId]: existingImage,
         }));
-        return existingImage;
+        setGenerationStatus('Existing image found');
+        return true;
+      }
+      return false;
+    },
+    [checkExistingImage]
+  );
+
+  useEffect(() => {
+    if (currentMessageId) {
+      setExistingImage(currentMessageId);
+    }
+  }, [currentMessageId, setExistingImage]);
+
+  const generateImage = useCallback(
+    async (messageId: string, prompt: string) => {
+      setCurrentMessageId(messageId);
+
+      if (!publicClient || !walletClient) {
+        console.error('Clients not initialized');
+        return null;
+      }
+
+      // Check if image already exists in the database
+      const imageExists = await setExistingImage(messageId);
+      if (imageExists) {
+        return images[messageId];
       }
 
       setIsGenerating(true);
@@ -199,7 +233,7 @@ export function useImageGeneratorDex() {
         return null;
       }
     },
-    [publicClient, walletClient]
+    [publicClient, walletClient, images, setExistingImage]
   );
 
   return {
@@ -207,5 +241,6 @@ export function useImageGeneratorDex() {
     isGenerating,
     generateImage,
     generationStatus,
+    setCurrentMessageId,
   };
 }
