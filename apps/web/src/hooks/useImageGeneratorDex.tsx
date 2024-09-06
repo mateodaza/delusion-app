@@ -4,7 +4,6 @@ import { createPublicClient, http, parseAbi } from 'viem';
 import {
   useAccount,
   useWriteContract,
-  useReadContract,
   useWaitForTransactionReceipt,
 } from 'wagmi';
 
@@ -38,75 +37,13 @@ export function useImageGeneratorDex(initialMessageId?: string) {
       chainId: galadriel.id,
     });
 
-  const { data: lastResponse, refetch: refetchLastResponse } = useReadContract({
-    address: contractAddress,
-    abi: contractABI,
-    functionName: 'getLastResponse',
-    account: address,
-  });
-
   useEffect(() => {
-    const initializeClient = async () => {
-      const newPublicClient = createPublicClient({
-        chain: galadriel,
-        transport: http(),
-      });
-      setPublicClient(newPublicClient);
-    };
-
-    initializeClient();
+    const newPublicClient = createPublicClient({
+      chain: galadriel,
+      transport: http(),
+    });
+    setPublicClient(newPublicClient);
   }, []);
-
-  const checkExistingImage = useCallback(
-    async (messageId: string): Promise<string | null> => {
-      try {
-        const response = await fetch(`/api/check-image?messageId=${messageId}`);
-        if (response.ok) {
-          const data = await response.json();
-          return data.imageUrl;
-        }
-        return null;
-      } catch (error) {
-        console.error('Error checking existing image:', error);
-        return null;
-      }
-    },
-    []
-  );
-
-  const saveImageToDatabase = async (messageId: string, imageUrl: string) => {
-    try {
-      await fetch('/api/save-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId, imageUrl }),
-      });
-    } catch (error) {
-      console.error('Error saving image to database:', error);
-    }
-  };
-
-  const setExistingImage = useCallback(
-    async (messageId: string) => {
-      const existingImage = await checkExistingImage(messageId);
-      if (existingImage) {
-        setImages((prevImages) => ({
-          ...prevImages,
-          [messageId]: existingImage,
-        }));
-        setGenerationStatus('Existing image found');
-        return true;
-      }
-      return false;
-    },
-    [checkExistingImage]
-  );
-
-  useEffect(() => {
-    if (currentMessageId) {
-      setExistingImage(currentMessageId);
-    }
-  }, [currentMessageId, setExistingImage]);
 
   const generateImage = useCallback(
     async (messageId: string, prompt: string) => {
@@ -117,17 +54,20 @@ export function useImageGeneratorDex(initialMessageId?: string) {
         return null;
       }
 
-      const imageExists = await setExistingImage(messageId);
-      if (imageExists) {
-        return images[messageId];
-      }
-
       setIsGenerating(true);
       setGenerationStatus('Initializing image generation...');
 
       try {
+        // Capture the initial response
+        const initialResponse = (await publicClient.readContract({
+          address: contractAddress,
+          abi: contractABI,
+          functionName: 'getLastResponse',
+          account: address,
+        })) as [string, boolean];
+
         setGenerationStatus('Sending transaction...');
-        writeContract({
+        await writeContract({
           address: contractAddress,
           abi: contractABI,
           functionName: 'initializeDalleCall',
@@ -143,10 +83,14 @@ export function useImageGeneratorDex(initialMessageId?: string) {
 
         // Function to check for response
         const checkForResponse = async (): Promise<string> => {
-          await refetchLastResponse();
-          const [response, isReady] = lastResponse as [string, boolean];
+          const [response, isReady] = (await publicClient.readContract({
+            address: contractAddress,
+            abi: contractABI,
+            functionName: 'getLastResponse',
+            account: address,
+          })) as [string, boolean];
 
-          if (isReady && response !== '') {
+          if (isReady && response !== '' && response !== initialResponse[0]) {
             return response;
           }
           throw new Error('Response not ready');
@@ -169,7 +113,6 @@ export function useImageGeneratorDex(initialMessageId?: string) {
                 ...prevImages,
                 [messageId]: response,
               }));
-              await saveImageToDatabase(messageId, response);
               setGenerationStatus('Image generated successfully!');
               setIsGenerating(false);
               resolve(response);
@@ -192,14 +135,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
         return null;
       }
     },
-    [
-      publicClient,
-      images,
-      setExistingImage,
-      writeContract,
-      lastResponse,
-      refetchLastResponse,
-    ]
+    [publicClient, writeContract, address]
   );
 
   return {

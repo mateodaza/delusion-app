@@ -26,6 +26,7 @@ import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip';
 import useTheme from '@/hooks/useTheme';
 import { useGameState } from '@/hooks/useGameState';
 import SentimentGauge from './sentimentGauge';
+import { galadriel } from '@/wagmi';
 
 interface Message {
   role: string;
@@ -117,6 +118,7 @@ const Dashboard = ({ ABI, ADDRESS }: { ABI: any; ADDRESS: `0x${string}` }) => {
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash,
+      chainId: galadriel.id,
     });
 
   const isLoading =

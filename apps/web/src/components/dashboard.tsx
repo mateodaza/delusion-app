@@ -28,6 +28,7 @@ import { useGameState } from '@/hooks/useGameState';
 import SentimentGauge from './sentimentGauge';
 import Link from 'next/link';
 import ScenarioVisualization from './scenarioVisualization';
+import { galadriel } from '@/wagmi';
 
 type LoadingState = 'idle' | 'sending' | 'mining' | 'fetching' | 'ready';
 
@@ -85,7 +86,9 @@ const Dashboard = ({
   } = useWriteContract();
   const hashData = useWaitForTransactionReceipt({
     hash,
+    chainId: galadriel.id,
   });
+
   const { isLoading: isConfirming, isSuccess: isConfirmed } = hashData;
   const isLoading =
     loading || isConfirming || messageHistoryLoading || txIsPending;
@@ -218,7 +221,7 @@ const Dashboard = ({
 
         setTimeout(() => {
           fetchChatHistory(true);
-        }, 5000);
+        }, 10000);
       } catch (error) {
         console.error('Failed to start game:', error);
         setIsCreatingNewChat(false);
@@ -349,7 +352,7 @@ const Dashboard = ({
             </div>
           )}
           {currentStep.gameState.Challenge && (
-            <div className='flex flex-row justify-start mb-4 '>
+            <div className='flex flex-row justify-start mb-4 gap-4'>
               <div className='max-w-[70%]'>
                 <h2
                   className={
