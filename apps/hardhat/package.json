@@ -10,6 +10,7 @@
     "deployAll:localhost": "npx hardhat run scripts/deployAll.ts --network localhost",
     "deployAll:galadriel": "npx hardhat run scripts/deployAll.ts --network galadriel",
     "deployQuickstart": "npx hardhat run scripts/deployQuickstart.ts --network galadriel",
+    "deployImageGen": "npx hardhat run scripts/deployImageGen.ts --network galadriel",
     "deployECON": "npx hardhat run scripts/deployECON.ts --network galadriel",
     "deployDELUSION": "npx hardhat run scripts/deployDELUSION.ts --network galadriel",
     "deployTest:localhost": "npx hardhat run scripts/deployTest.ts --network localhost",

@@ -8,6 +8,7 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
     generateImage,
     generationStatus,
     setCurrentMessageId,
+    currentCallId,
   } = useImageGeneratorDex();
 
   useEffect(() => {
@@ -60,6 +61,11 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
               <p className={getThemeClass('text-green-300', 'text-cyan-300')}>
                 {generationStatus}
               </p>
+              {currentCallId && (
+                <p className={getThemeClass('text-green-200', 'text-cyan-200')}>
+                  Call ID: {currentCallId}
+                </p>
+              )}
               <div className='mt-2'>
                 <div
                   className={getThemeClass(

@@ -6,15 +6,18 @@ import {
   createWalletClient,
   custom,
   parseAbi,
+  decodeEventLog,
 } from 'viem';
 
 const contractABI = parseAbi([
   'function initializeDalleCall(string memory message) public returns (uint)',
-  'function getLastResponse() public view returns (string, bool)',
-  'event NewResponseReceived(string response)',
+  'function getLastResponse() public view returns (string memory, bool)',
+  'function getResponseById(uint callId) public view returns (string memory, bool)',
+  'event NewResponseReceived(uint indexed callId, string response)',
 ]);
 
-const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470';
+// const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470'; // lite with last response
+const contractAddress = '0xE8AeB4006CAB2cA6f42152Cf7aD42b147c378B5A';
 
 export function useImageGeneratorDex(initialMessageId?: string) {
   const [images, setImages] = useState<Record<string, string>>({});
@@ -29,6 +32,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
   const [currentMessageId, setCurrentMessageId] = useState<string | undefined>(
     initialMessageId
   );
+  const [currentCallId, setCurrentCallId] = useState<number | null>(null);
 
   useEffect(() => {
     const initializeClients = async () => {
@@ -59,7 +63,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
     async (messageId: string): Promise<string | null> => {
       try {
         const response = await fetch(`/api/check-image?messageId=${messageId}`);
-        console.log({ response });
+
         if (response.ok) {
           const data = await response.json();
           return data.imageUrl;
@@ -155,6 +159,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
             address: contractAddress,
             abi: contractABI,
             functionName: 'getLastResponse',
+            account: address,
           })) as [string, boolean];
 
           if (isReady && response !== '') {
@@ -163,36 +168,11 @@ export function useImageGeneratorDex(initialMessageId?: string) {
           throw new Error('Response not ready');
         };
 
-        // Wait for the response using both event and polling
+        // Wait for the response using polling
         return new Promise<string>((resolve, reject) => {
-          let resolved = false;
           let attempts = 0;
           const maxAttempts = 60; // 5 minutes total (60 * 5 seconds)
 
-          const unwatch = publicClient.watchContractEvent({
-            address: contractAddress,
-            abi: contractABI,
-            eventName: 'NewResponseReceived',
-            onLogs: async (logs) => {
-              if (!resolved) {
-                resolved = true;
-                unwatch();
-                clearInterval(pollingInterval);
-                console.log({ logs });
-                const response = logs[0].args.response as string;
-                setImages((prevImages) => ({
-                  ...prevImages,
-                  [messageId]: response,
-                }));
-                await saveImageToDatabase(messageId, response);
-                setGenerationStatus('Image generated successfully!');
-                setIsGenerating(false);
-                resolve(response);
-              }
-            },
-          });
-
-          // Polling as a backup
           const pollingInterval = setInterval(async () => {
             attempts++;
             setGenerationStatus(
@@ -200,22 +180,17 @@ export function useImageGeneratorDex(initialMessageId?: string) {
             );
             try {
               const response = await checkForResponse();
-              if (!resolved) {
-                resolved = true;
-                unwatch();
-                clearInterval(pollingInterval);
-                setImages((prevImages) => ({
-                  ...prevImages,
-                  [messageId]: response,
-                }));
-                await saveImageToDatabase(messageId, response);
-                setGenerationStatus('Image generated successfully!');
-                setIsGenerating(false);
-                resolve(response);
-              }
+              clearInterval(pollingInterval);
+              setImages((prevImages) => ({
+                ...prevImages,
+                [messageId]: response,
+              }));
+              await saveImageToDatabase(messageId, response);
+              setGenerationStatus('Image generated successfully!');
+              setIsGenerating(false);
+              resolve(response);
             } catch (error) {
               if (attempts >= maxAttempts) {
-                unwatch();
                 clearInterval(pollingInterval);
                 setGenerationStatus(
                   'Image generation timed out. Please try again.'
@@ -242,5 +217,6 @@ export function useImageGeneratorDex(initialMessageId?: string) {
     generateImage,
     generationStatus,
     setCurrentMessageId,
+    currentCallId,
   };
 }

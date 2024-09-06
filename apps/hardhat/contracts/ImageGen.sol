@@ -8,11 +8,16 @@ contract ImageGen {
     address public oracleAddress;
     uint private callsCount;
 
-    string public lastResponse;
-    bool public responseReady;
+    struct Response {
+        string content;
+        bool ready;
+    }
+
+    mapping(uint => Response) public responses;
+    mapping(address => uint) public userLastCallId;
 
     event OracleAddressUpdated(address indexed newOracleAddress);
-    event NewResponseReceived(string response);
+    event NewResponseReceived(uint indexed callId, string response);
 
     constructor(address initialOracleAddress) {
         owner = msg.sender;
@@ -38,7 +43,8 @@ contract ImageGen {
         uint currentId = callsCount;
         callsCount = currentId + 1;
 
-        responseReady = false;
+        responses[currentId] = Response("", false);
+        userLastCallId[msg.sender] = currentId;
 
         IOracle(oracleAddress).createFunctionCall(
             currentId,
@@ -50,20 +56,24 @@ contract ImageGen {
     }
 
     function onOracleFunctionResponse(
-        uint /*runId*/,
+        uint runId,
         string memory response,
         string memory errorMessage
     ) public onlyOracle {
-        if (keccak256(abi.encodePacked(errorMessage)) != keccak256(abi.encodePacked(""))) {
-            lastResponse = errorMessage;
-        } else {
-            lastResponse = response;
-        }
-        responseReady = true;
-        emit NewResponseReceived(lastResponse);
+        string memory finalResponse = keccak256(abi.encodePacked(errorMessage)) == keccak256(abi.encodePacked("")) 
+            ? response 
+            : errorMessage;
+        
+        responses[runId] = Response(finalResponse, true);
+        emit NewResponseReceived(runId, finalResponse);
     }
 
     function getLastResponse() public view returns (string memory, bool) {
-        return (lastResponse, responseReady);
+        uint callId = userLastCallId[msg.sender];
+        return (responses[callId].content, responses[callId].ready);
+    }
+
+    function getResponseById(uint callId) public view returns (string memory, bool) {
+        return (responses[callId].content, responses[callId].ready);
     }
 }
