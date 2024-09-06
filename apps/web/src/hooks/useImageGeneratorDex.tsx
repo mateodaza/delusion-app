@@ -45,9 +45,55 @@ export function useImageGeneratorDex(initialMessageId?: string) {
     setPublicClient(newPublicClient);
   }, []);
 
+  const checkExistingImage = useCallback(
+    async (messageId: string): Promise<string | null> => {
+      try {
+        const response = await fetch(`/api/check-image?messageId=${messageId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.imageUrl) {
+            setImages((prevImages) => ({
+              ...prevImages,
+              [messageId]: data.imageUrl,
+            }));
+            return data.imageUrl;
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error('Error checking existing image:', error);
+        return null;
+      }
+    },
+    []
+  );
+
+  const saveImageToDatabase = async (messageId: string, imageUrl: string) => {
+    try {
+      await fetch('/api/save-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, imageUrl }),
+      });
+    } catch (error) {
+      console.error('Error saving image to database:', error);
+    }
+  };
+
   const generateImage = useCallback(
     async (messageId: string, prompt: string) => {
       setCurrentMessageId(messageId);
+
+      // Check for existing image first
+      const existingImage = await checkExistingImage(messageId);
+      if (existingImage) {
+        setImages((prevImages) => ({
+          ...prevImages,
+          [messageId]: existingImage,
+        }));
+        setGenerationStatus('Existing image found');
+        return existingImage;
+      }
 
       if (!publicClient) {
         console.error('Public client not initialized');
@@ -90,6 +136,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
             account: address,
           })) as [string, boolean];
 
+          console.log({ isReady, response, initialResponse });
           if (isReady && response !== '' && response !== initialResponse[0]) {
             return response;
           }
@@ -113,6 +160,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
                 ...prevImages,
                 [messageId]: response,
               }));
+              await saveImageToDatabase(messageId, response);
               setGenerationStatus('Image generated successfully!');
               setIsGenerating(false);
               resolve(response);
@@ -135,13 +183,14 @@ export function useImageGeneratorDex(initialMessageId?: string) {
         return null;
       }
     },
-    [publicClient, writeContract, address]
+    [publicClient, writeContract, address, checkExistingImage]
   );
 
   return {
     images,
     isGenerating,
     generateImage,
+    checkExistingImage,
     generationStatus,
     setCurrentMessageId,
     currentCallId,

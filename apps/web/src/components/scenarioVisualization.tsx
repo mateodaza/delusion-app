@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useImageGeneratorDex } from '@/hooks/useImageGeneratorDex';
 
 const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
@@ -9,16 +9,22 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
     generationStatus,
     setCurrentMessageId,
     currentCallId,
+    checkExistingImage,
   } = useImageGeneratorDex();
+
+  const [isImageExisting, setIsImageExisting] = useState(false);
 
   useEffect(() => {
     if (currentStep.id) {
       setCurrentMessageId(currentStep.id);
+      checkExistingImage(currentStep.id).then((existingImage) => {
+        setIsImageExisting(!!existingImage);
+      });
     }
-  }, [currentStep.id, setCurrentMessageId]);
+  }, [currentStep.id, setCurrentMessageId, checkExistingImage]);
 
   const handleGenerateImage = async () => {
-    if (currentStep.gameState) {
+    if (currentStep.gameState && !isImageExisting) {
       const imagePrompt = `${currentStep.gameState.Title}: ${currentStep.gameState.Challenge}`;
       await generateImage(currentStep.id, imagePrompt);
     }
@@ -26,12 +32,6 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
 
   return (
     <div className='mt-4'>
-      <h2
-        className={
-          getThemeClass('text-green-300', 'text-cyan-300') +
-          ' text-2xl font-bold mb-2'
-        }
-      ></h2>
       {images[currentStep.id] ? (
         <img
           src={images[currentStep.id]}
@@ -42,17 +42,21 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
         <div className='flex flex-col items-center space-y-4'>
           <button
             onClick={handleGenerateImage}
-            disabled={isGenerating}
-            className={
-              getThemeClass(
+            disabled={isGenerating || isImageExisting}
+            className={`
+              ${getThemeClass(
                 'bg-green-700 hover:bg-green-600 border-green-400',
                 'bg-cyan-700 hover:bg-cyan-600 border-[#00bcbcd9]'
-              ) +
-              ' text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2' +
-              (isGenerating ? ' opacity-50 cursor-not-allowed' : '')
-            }
+              )}
+              text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2
+              ${isGenerating || isImageExisting ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
           >
-            {isGenerating ? 'Generating...' : 'Generate Visualization'}
+            {isGenerating
+              ? 'Generating...'
+              : isImageExisting
+                ? 'Image Available'
+                : 'Generate Visualization'}
           </button>
           {isGenerating && (
             <div className='flex flex-col items-center text-center'>
