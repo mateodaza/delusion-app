@@ -76,7 +76,7 @@ const Dashboard = ({ ABI, ADDRESS }: { ABI: any; ADDRESS: `0x${string}` }) => {
     goToNextStep,
     isFirstStep,
     isLastStep,
-  } = useGameState(messageHistory);
+  } = useGameState(messageHistory, chatId);
   useEffect(() => {
     console.log('Updated images:', images);
   }, [images]);
