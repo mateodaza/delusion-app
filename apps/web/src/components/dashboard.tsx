@@ -76,7 +76,7 @@ const Dashboard = ({
     goToNextStep,
     isFirstStep,
     isLastStep,
-  } = useGameState(messageHistory);
+  } = useGameState(messageHistory, chatId);
 
   const {
     data: hash,

@@ -18,17 +18,29 @@ interface GameState {
 
 interface Step {
   index: number;
+  id: string;
   gameState: GameState | null;
   userMessage: string;
 }
 
-export const useGameState = (messageHistory: Message[] | undefined) => {
+export const useGameState = (
+  messageHistory: Message[] | undefined,
+  chatId: string | null
+) => {
   const [currentStep, setCurrentStep] = useState<Step>({
     index: 0,
+    id: '',
     gameState: null,
     userMessage: '',
   });
   const [totalSteps, setTotalSteps] = useState(0);
+
+  const generateStableId = useCallback(
+    (index: number): string => {
+      return `${chatId || 'chat'}_msg_${index}`;
+    },
+    [chatId]
+  );
 
   const parseGameState = useCallback((message: Message): GameState | null => {
     if (message.role !== 'assistant') return null;
@@ -113,9 +125,14 @@ export const useGameState = (messageHistory: Message[] | undefined) => {
       const userMessage = messageHistory[userMessageIndex].content[0].value;
       const gameState = parseGameState(messageHistory[assistantMessageIndex]);
 
-      setCurrentStep({ index: stepIndex, gameState, userMessage });
+      setCurrentStep({
+        index: stepIndex,
+        id: generateStableId(stepIndex),
+        gameState,
+        userMessage,
+      });
     },
-    [messageHistory, parseGameState]
+    [messageHistory, parseGameState, generateStableId]
   );
 
   useEffect(() => {

@@ -7,6 +7,7 @@ import {
   custom,
   parseAbi,
 } from 'viem';
+import { kv } from '@vercel/kv';
 
 const contractABI = parseAbi([
   'function initializeDalleCall(string memory message) public returns (uint)',
@@ -17,7 +18,7 @@ const contractABI = parseAbi([
 const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470';
 
 export function useImageGeneratorDex() {
-  const [images, setImages] = useState<Record<number, string>>({});
+  const [images, setImages] = useState<Record<string, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string>('');
   const [publicClient, setPublicClient] = useState<ReturnType<
@@ -52,11 +53,41 @@ export function useImageGeneratorDex() {
     initializeClients();
   }, []);
 
+  const checkExistingImage = async (
+    messageId: string
+  ): Promise<string | null> => {
+    try {
+      const existingImage = await kv.get<string>(`image:${messageId}`);
+      return existingImage || null;
+    } catch (error) {
+      console.error('Error checking existing image:', error);
+      return null;
+    }
+  };
+
+  const saveImageToDatabase = async (messageId: string, imageUrl: string) => {
+    try {
+      await kv.set(`image:${messageId}`, imageUrl);
+    } catch (error) {
+      console.error('Error saving image to database:', error);
+    }
+  };
+
   const generateImage = useCallback(
-    async (stepIndex: number, prompt: string) => {
+    async (messageId: string, prompt: string) => {
       if (!publicClient || !walletClient) {
         console.error('Clients not initialized');
         return null;
+      }
+
+      // Check if image already exists in the database
+      const existingImage = await checkExistingImage(messageId);
+      if (existingImage) {
+        setImages((prevImages) => ({
+          ...prevImages,
+          [messageId]: existingImage,
+        }));
+        return existingImage;
       }
 
       setIsGenerating(true);
@@ -117,8 +148,9 @@ export function useImageGeneratorDex() {
                 const response = logs[0].args.response as string;
                 setImages((prevImages) => ({
                   ...prevImages,
-                  [stepIndex]: response,
+                  [messageId]: response,
                 }));
+                await saveImageToDatabase(messageId, response);
                 setGenerationStatus('Image generated successfully!');
                 setIsGenerating(false);
                 resolve(response);
@@ -140,8 +172,9 @@ export function useImageGeneratorDex() {
                 clearInterval(pollingInterval);
                 setImages((prevImages) => ({
                   ...prevImages,
-                  [stepIndex]: response,
+                  [messageId]: response,
                 }));
+                await saveImageToDatabase(messageId, response);
                 setGenerationStatus('Image generated successfully!');
                 setIsGenerating(false);
                 resolve(response);

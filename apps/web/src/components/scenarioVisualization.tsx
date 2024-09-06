@@ -8,7 +8,7 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
   const handleGenerateImage = async () => {
     if (currentStep.gameState) {
       const imagePrompt = `${currentStep.gameState.Title}: ${currentStep.gameState.Challenge}`;
-      await generateImage(currentStep.index, imagePrompt);
+      await generateImage(currentStep.id, imagePrompt);
     }
   };
 
