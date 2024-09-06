@@ -31,9 +31,7 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
           getThemeClass('text-green-300', 'text-cyan-300') +
           ' text-2xl font-bold mb-2'
         }
-      >
-        Scenario Visualization:
-      </h2>
+      ></h2>
       {images[currentStep.id] ? (
         <img
           src={images[currentStep.id]}
@@ -54,7 +52,7 @@ const ScenarioVisualization = ({ currentStep, getThemeClass }: any) => {
               (isGenerating ? ' opacity-50 cursor-not-allowed' : '')
             }
           >
-            {isGenerating ? 'Generating...' : 'Generate Image'}
+            {isGenerating ? 'Generating...' : 'Generate Visualization'}
           </button>
           {isGenerating && (
             <div className='flex flex-col items-center text-center'>

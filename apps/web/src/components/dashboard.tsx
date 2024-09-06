@@ -265,7 +265,7 @@ const Dashboard = ({
 
     return (
       <div
-        className='flex items-center justify-between mb-4 p-2 rounded-lg bg-opacity-50'
+        className='flex items-center justify-between px-2 py-1 rounded-lg bg-opacity-50 mb-1 text-sm'
         style={{
           backgroundColor: getThemeClass(
             'rgba(34, 197, 94, 0.2)',
@@ -276,25 +276,33 @@ const Dashboard = ({
         <button
           onClick={goToPreviousStep}
           disabled={isFirstStep}
-          className={getThemeClass(
-            'text-green-300 disabled:text-green-700',
-            'text-cyan-300 disabled:text-cyan-700'
-          )}
+          className={
+            getThemeClass(
+              'text-green-300 disabled:text-green-700 p-1',
+              'text-cyan-300 disabled:text-cyan-700 p-1'
+            ) + ' hover:bg-opacity-20 rounded'
+          }
         >
-          <ChevronLeft size={20} />
+          <ChevronLeft size={16} />
         </button>
-        <span className={getThemeClass('text-green-300', 'text-cyan-300')}>
-          Turn {currentStep.index + 1} of {totalSteps}
+        <span
+          className={
+            getThemeClass('text-green-300', 'text-cyan-300') + ' font-medium'
+          }
+        >
+          Turn {currentStep.index + 1} / {totalSteps}
         </span>
         <button
           onClick={goToNextStep}
           disabled={isLastStep}
-          className={getThemeClass(
-            'text-green-300 disabled:text-green-700',
-            'text-cyan-300 disabled:text-cyan-700'
-          )}
+          className={
+            getThemeClass(
+              'text-green-300 disabled:text-green-700 p-1',
+              'text-cyan-300 disabled:text-cyan-700 p-1'
+            ) + ' hover:bg-opacity-20 rounded'
+          }
         >
-          <ChevronRight size={20} />
+          <ChevronRight size={16} />
         </button>
       </div>
     );
@@ -318,174 +326,179 @@ const Dashboard = ({
 
     return (
       <>
-        {currentStep.gameState.Title && (
-          <div className='mb-4'>
-            <h2
-              className={
-                getThemeClass('text-green-300', 'text-cyan-300') +
-                ' text-2xl font-bold mb-2'
-              }
-            >
-              {currentStep.gameState.Title}
-            </h2>
-          </div>
-        )}
-
-        {currentStep.gameState.Challenge && (
-          <div className='mb-4'>
-            <h2
-              className={
-                getThemeClass('text-green-300', 'text-cyan-300') +
-                ' text-xl font-bold mb-2'
-              }
-            >
-              Challenge:
-            </h2>
-            <p
-              className={
-                getThemeClass('text-green-100', 'text-cyan-100') + ' text-lg'
-              }
-            >
-              {currentStep.gameState.Challenge}
-            </p>
-          </div>
-        )}
-        <ScenarioVisualization
-          currentStep={currentStep}
-          getThemeClass={getThemeClass}
-        />
-
-        <div className='mb-4'>
-          <h2
-            className={
-              getThemeClass('text-green-300', 'text-cyan-300') +
-              ' text-2xl font-bold mb-2'
-            }
-          >
-            Current Scenario:
-          </h2>
-          <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
-            {currentStep.userMessage}
-          </p>
-        </div>
-
         {currentStep.gameState.Metrics && (
-          <>
+          <div>
             <SentimentGauge
               metrics={currentStep.gameState.Metrics}
               getThemeClass={getThemeClass}
             />
-            {renderMetrics(currentStep.gameState.Metrics)}
-          </>
+          </div>
         )}
-
-        {isLastStep ? (
-          <>
-            {currentStep.gameState.Options && (
-              <div className='mb-4'>
-                <h2
-                  className={
-                    getThemeClass('text-green-300', 'text-cyan-300') +
-                    ' text-xl font-bold mb-2'
-                  }
-                >
-                  Strategic Options:
-                </h2>
-                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                  {currentStep.gameState.Options.map((option, index) => (
-                    <TooltipProvider key={index}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={
-                              getThemeClass(
-                                'bg-green-800 bg-opacity-40 hover:bg-green-700',
-                                'bg-cyan-800 bg-opacity-40 hover:bg-cyan-700'
-                              ) +
-                              ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
-                            }
-                            onClick={() => {
-                              handleOptionSelect(option.Description);
-                            }}
-                          >
-                            {getOptionIcon(index)}
-                            <span
-                              className={getThemeClass(
-                                'text-green-100',
-                                'text-cyan-100'
-                              )}
-                            >
-                              {option.Description}
-                            </span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          className={
-                            getThemeClass('bg-black', 'bg-gray-800') +
-                            ' p-2 max-w-xs'
-                          }
-                        >
-                          <p className='text-sm'>{option.Outcome}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className='mt-4'>
-              <div
-                className={
-                  getThemeClass(
-                    'bg-green-800 bg-opacity-40',
-                    'bg-cyan-800 bg-opacity-40'
-                  ) + ' flex items-center rounded-lg overflow-hidden'
-                }
-              >
-                <input
-                  type='text'
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  className={
-                    getThemeClass(
-                      'bg-transparent py-2 px-3 text-green-100 placeholder-green-500',
-                      'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
-                    ) + ' flex-grow focus:outline-none'
-                  }
-                  placeholder='Or input your own strategic decision...'
-                />
-                <button
-                  onClick={() => handleSendMessage()}
-                  className={
-                    getThemeClass(
-                      'bg-green-600 hover:bg-green-500',
-                      'bg-cyan-600 hover:bg-cyan-500'
-                    ) +
-                    ' text-white font-bold py-2 px-4 transition duration-300 ease-in-out'
-                  }
-                >
-                  <Send size={20} />
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          !isFirstStep && (
-            <div className='mt-4'>
+        <div className='flex-grow overflow-y-auto mt-4 max-h-[78%]'>
+          {currentStep.gameState.Title && (
+            <div>
               <h2
                 className={
                   getThemeClass('text-green-300', 'text-cyan-300') +
-                  ' text-lg font-bold mb-2'
+                  ' text-2xl font-bold mb-2'
                 }
               >
-                Your Decision:
+                {currentStep.gameState.Title}
               </h2>
-              <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
-                {currentStep.userMessage}
-              </p>
             </div>
-          )
-        )}
+          )}
+          {currentStep.gameState.Challenge && (
+            <div className='flex flex-row justify-start mb-4 '>
+              <div className='max-w-[70%]'>
+                <h2
+                  className={
+                    getThemeClass('text-green-300', 'text-cyan-300') +
+                    ' text-xl font-bold mb-2 '
+                  }
+                >
+                  Challenge:
+                </h2>
+                <p
+                  className={
+                    getThemeClass('text-green-100', 'text-cyan-100') +
+                    ' text-lg'
+                  }
+                >
+                  {currentStep.gameState.Challenge}
+                </p>
+
+                <div className='mb-4'>
+                  <h2
+                    className={
+                      getThemeClass('text-green-300', 'text-cyan-300') +
+                      ' text-2xl font-bold mb-2'
+                    }
+                  >
+                    Current Scenario:
+                  </h2>
+                  <p
+                    className={getThemeClass('text-green-100', 'text-cyan-100')}
+                  >
+                    {currentStep.userMessage}
+                  </p>
+                </div>
+              </div>
+              <ScenarioVisualization
+                currentStep={currentStep}
+                getThemeClass={getThemeClass}
+              />
+            </div>
+          )}
+
+          {isLastStep ? (
+            <>
+              {currentStep.gameState.Options && (
+                <div className='mb-4'>
+                  <h2
+                    className={
+                      getThemeClass('text-green-300', 'text-cyan-300') +
+                      ' text-xl font-bold mb-2'
+                    }
+                  >
+                    Strategic Options:
+                  </h2>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                    {currentStep.gameState.Options.map((option, index) => (
+                      <TooltipProvider key={index}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={
+                                getThemeClass(
+                                  'bg-green-800 bg-opacity-40 hover:bg-green-700',
+                                  'bg-cyan-800 bg-opacity-40 hover:bg-cyan-700'
+                                ) +
+                                ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
+                              }
+                              onClick={() => {
+                                handleOptionSelect(option.Description);
+                              }}
+                            >
+                              {getOptionIcon(index)}
+                              <span
+                                className={getThemeClass(
+                                  'text-green-100',
+                                  'text-cyan-100'
+                                )}
+                              >
+                                {option.Description}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            className={
+                              getThemeClass('bg-black', 'bg-gray-800') +
+                              ' p-2 max-w-xs'
+                            }
+                          >
+                            <p className='text-sm'>{option.Outcome}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className='mt-4'>
+                <div
+                  className={
+                    getThemeClass(
+                      'bg-green-800 bg-opacity-40',
+                      'bg-cyan-800 bg-opacity-40'
+                    ) + ' flex items-center rounded-lg overflow-hidden'
+                  }
+                >
+                  <input
+                    type='text'
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    className={
+                      getThemeClass(
+                        'bg-transparent py-2 px-3 text-green-100 placeholder-green-500',
+                        'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
+                      ) + ' flex-grow focus:outline-none'
+                    }
+                    placeholder='Or input your own strategic decision...'
+                  />
+                  <button
+                    onClick={() => handleSendMessage()}
+                    className={
+                      getThemeClass(
+                        'bg-green-600 hover:bg-green-500',
+                        'bg-cyan-600 hover:bg-cyan-500'
+                      ) +
+                      ' text-white font-bold py-2 px-4 transition duration-300 ease-in-out'
+                    }
+                  >
+                    <Send size={20} />
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            !isFirstStep && (
+              <div className='mt-4'>
+                <h2
+                  className={
+                    getThemeClass('text-green-300', 'text-cyan-300') +
+                    ' text-lg font-bold mb-2'
+                  }
+                >
+                  Your Decision:
+                </h2>
+                <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
+                  {currentStep.userMessage}
+                </p>
+              </div>
+            )
+          )}
+        </div>
+        {renderMetrics(currentStep.gameState.Metrics)}
       </>
     );
   };
@@ -498,7 +511,7 @@ const Dashboard = ({
     };
 
     return (
-      <div className='mb-4'>
+      <div className='mt-2 mb-4'>
         <h3
           className={
             getThemeClass('text-green-300', 'text-cyan-300') +
@@ -548,78 +561,98 @@ const Dashboard = ({
 
   return (
     <div
-      className={
-        getThemeClass('text-green-300 bg-black', 'text-cyan-300 bg-gray-900') +
-        ' min-h-screen font-mono'
-      }
+      className={`${getThemeClass('text-green-300 bg-black', 'text-cyan-300 bg-gray-900')} min-h-screen font-mono`}
     >
-      <div className='container mx-auto px-4 py-8 flex flex-col lg:flex-row h-screen'>
-        {/* Sidebar for scenarios */}
+      <div className='container mx-auto px-4 py-4 flex h-screen'>
+        {/* Improved Sidebar */}
         <div
-          className={
-            getThemeClass(
-              'bg-green-900 bg-opacity-30 border-green-500',
-              'bg-cyan-900 bg-opacity-30 border-[#00bcbcd9]'
-            ) +
-            ' w-full max-w-[300px] p-4 mt-10 mb-4 lg:mb-0 lg:mr-4 rounded-lg border-2 overflow-y-auto'
-          }
+          className={`
+        ${getThemeClass('bg-green-900 bg-opacity-30 border-green-500', 'bg-cyan-900 bg-opacity-30 border-[#00bcbcd9]')}
+        w-80 flex-shrink-0 p-4 mr-4 rounded-lg border-2 flex flex-col h-full overflow-hidden
+      `}
         >
-          <h2
-            className={
-              getThemeClass('text-green-300', 'text-cyan-300') +
-              ' text-xl font-bold mb-4'
-            }
-          >
-            {address ? 'Past Scenarios' : '±?___----__:)'}
-          </h2>
-          {address && !!chatHistory && chatHistory?.length > 0 && (
-            <ul className='space-y-2'>
-              {chatHistory.map((chat: any) => (
-                <li
-                  key={chat.id}
-                  className={`
-          ${getThemeClass('hover:bg-green-800', 'hover:bg-cyan-800')}
-          cursor-pointer hover:bg-opacity-40 p-2 rounded
-          ${chat.id === chatId ? 'border-b-2 border-current' : ''}
-        `}
-                  onClick={() => handleChatSelect(chat.id)}
-                >
-                  <Clock className='inline-block mr-2' size={16} />
-                  Scenario {chat?.hash.slice(-8)}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className='flex-1 flex flex-col overflow-hidden'>
+            <h2
+              className={`
+        ${getThemeClass('bg-green-900 text-green-300', 'bg-cyan-900 text-cyan-300')}
+        sticky top-0 z-10 py-2 px-4 text-xl font-bold mb-4 rounded-lg
+      `}
+            >
+              {address ? 'Past Scenarios' : '±?___----__:)'}
+            </h2>
+            {address && chatHistory?.length > 0 && (
+              <ul className='space-y-2 my-2 overflow-y-auto flex-1'>
+                {chatHistory.map((chat: any) => (
+                  <li
+                    key={chat.id}
+                    onClick={() => handleChatSelect(chat.id)}
+                    className={`
+              ${getThemeClass('hover:bg-green-800', 'hover:bg-cyan-800')}
+              cursor-pointer hover:bg-opacity-40 p-2 rounded
+              ${chat.id === chatId ? 'border-l-4 border-current pl-1' : ''}
+            `}
+                  >
+                    <Clock className='inline-block mr-2' size={16} />
+                    Scenario {chat?.hash?.slice(-8)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Actions Section */}
+          <div className='border-t border-opacity-20 pt-4 space-y-3 mt-auto'>
+            <button
+              onClick={() => setChatId(null)}
+              className={`
+        ${getThemeClass(
+          'bg-green-800 hover:bg-green-700 text-green-100',
+          'bg-cyan-800 hover:bg-cyan-700 text-cyan-100'
+        )}
+        w-full font-semibold py-2 px-4 rounded transition duration-300 ease-in-out
+      `}
+            >
+              New Scenario
+            </button>
+            <button
+              onClick={() => {
+                /* Add faucet functionality */
+              }}
+              className={`
+        ${getThemeClass(
+          'bg-green-800 hover:bg-green-700 text-green-100',
+          'bg-cyan-800 hover:bg-cyan-700 text-cyan-100'
+        )}
+        w-full font-semibold py-2 px-4 rounded transition duration-300 ease-in-out
+      `}
+            >
+              Get GAL from faucet
+            </button>
+          </div>
         </div>
 
         {/* Main content */}
         <div className='flex-grow flex flex-col'>
           <div className='flex justify-between items-center mb-4'>
-            <div className='flex flex-row text-center items-center'>
+            <div className='flex items-center space-x-2'>
               <p>As long as there is</p>
               <Link href='/'>
                 <h1
-                  className={
-                    getThemeClass('text-green-300', 'text-cyan-300') +
-                    ' text-4xl font-bold px-2'
-                  }
+                  className={`${getThemeClass('text-green-300', 'text-cyan-300')} text-4xl font-bold`}
                 >
-                  {' '}
                   DELUSION
                 </h1>
               </Link>
               <p>there is hope</p>
             </div>
-            <div className='flex items-center'>
+            <div className='flex items-center space-x-2'>
               <ConnectButton />
               <button
-                onClick={() => toggleTheme()}
-                className={
-                  getThemeClass(
-                    'bg-green-700 hover:bg-green-600',
-                    'bg-cyan-700 hover:bg-cyan-600'
-                  ) + ' text-black font-bold p-2 rounded-full ml-2'
-                }
+                onClick={toggleTheme}
+                className={`
+                  ${getThemeClass('bg-green-700 hover:bg-green-600', 'bg-cyan-700 hover:bg-cyan-600')}
+                  text-black font-bold p-2 rounded-full
+                `}
               >
                 {isCyanTheme ? <Sun size={20} /> : <Moon size={20} />}
               </button>
@@ -627,12 +660,10 @@ const Dashboard = ({
           </div>
 
           <div
-            className={
-              getThemeClass(
-                'bg-green-900 bg-opacity-30 border-green-500',
-                'bg-cyan-900 bg-opacity-30 border-[#00bcbcd9]'
-              ) + ' shadow-lg rounded-lg p-4 border-2 flex-grow overflow-y-auto'
-            }
+            className={`
+            ${getThemeClass('bg-green-900 bg-opacity-30 border-green-500', 'bg-cyan-900 bg-opacity-30 border-[#00bcbcd9]')}
+            shadow-lg rounded-lg p-4 border-2 flex-grow overflow-hidden flex flex-col
+          `}
           >
             {!isConnected ? (
               <p className='text-center text-xl mt-8'>Get a wallet to start.</p>
@@ -644,16 +675,16 @@ const Dashboard = ({
             ) : !chatId ? (
               <div className='h-full flex flex-col items-center justify-center space-y-8 p-6'>
                 <p
-                  className={
-                    getThemeClass('text-green-100', 'text-cyan-100') +
-                    ' text-lg text-center max-w-2xl'
-                  }
+                  className={`${getThemeClass('text-green-100', 'text-cyan-100')} text-lg text-center max-w-2xl`}
                 >
                   Hello friend
-                  <br /> <br />
-                  Dare to challenge any reality? be our guest. <br /> This game
-                  has no end.
-                  <br /> Check your metrics and see how they evolve.
+                  <br />
+                  <br />
+                  Dare to challenge any reality? be our guest.
+                  <br />
+                  This game has no end.
+                  <br />
+                  Check your metrics and see how they evolve.
                   <br />
                   <br />
                 </p>
@@ -661,32 +692,29 @@ const Dashboard = ({
                   value={customScenario}
                   onChange={(e) => setCustomScenario(e.target.value)}
                   placeholder='Describe your reality >>insert text<<'
-                  className={
-                    getThemeClass(
+                  className={`
+                    ${getThemeClass(
                       'bg-green-800 bg-opacity-40 text-green-100 placeholder-green-500',
                       'bg-cyan-800 bg-opacity-40 text-cyan-100 placeholder-cyan-500'
-                    ) +
-                    ' w-full max-w-md p-4 rounded-lg border-2 border-opacity-50 focus:outline-none focus:border-opacity-100 transition duration-300'
-                  }
+                    )}
+                    w-full max-w-md p-4 rounded-lg border-2 border-opacity-50 focus:outline-none focus:border-opacity-100 transition duration-300
+                  `}
                   rows={4}
                 />
                 <button
                   onClick={handleStartGame}
-                  className={
-                    getThemeClass(
+                  className={`
+                    ${getThemeClass(
                       'bg-green-700 hover:bg-green-600 border-green-400',
                       'bg-cyan-700 hover:bg-cyan-600 border-[#00bcbcd9]'
-                    ) +
-                    ' text-white font-bold py-4 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2'
-                  }
+                    )}
+                    text-white font-bold py-4 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2
+                  `}
                 >
                   {isConfirming ? 'Processing...' : 'Enter'}
                 </button>
                 <p
-                  className={
-                    getThemeClass('text-green-400', 'text-cyan-400') +
-                    ' text-sm italic'
-                  }
+                  className={`${getThemeClass('text-green-400', 'text-cyan-400')} text-sm italic`}
                 >
                   Hint: We will challenge any scenario you propose. Be creative.
                 </p>

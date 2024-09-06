@@ -16,7 +16,7 @@ const contractABI = parseAbi([
   'event NewResponseReceived(uint indexed callId, string response)',
 ]);
 
-// const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470'; // lite with last response
+// const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470'; // lite without proper last response
 const contractAddress = '0xE8AeB4006CAB2cA6f42152Cf7aD42b147c378B5A';
 
 export function useImageGeneratorDex(initialMessageId?: string) {
