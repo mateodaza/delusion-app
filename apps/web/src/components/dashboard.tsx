@@ -103,6 +103,7 @@ const Dashboard = ({
       const updateAfterConfirmation = async () => {
         setLoadingState('fetching');
         const updatedHistory = await fetchChatHistory();
+
         if (updatedHistory.length > 0) {
           const latestChatId = updatedHistory[0].id;
           setChatId(latestChatId);
@@ -371,10 +372,10 @@ const Dashboard = ({
                   <h2
                     className={
                       getThemeClass('text-green-300', 'text-cyan-300') +
-                      ' text-2xl font-bold mb-2'
+                      ' text-xl font-bold mb-2'
                     }
                   >
-                    Current Scenario:
+                    Your Current Scenario:
                   </h2>
                   <p
                     className={getThemeClass('text-green-100', 'text-cyan-100')}
@@ -389,115 +390,111 @@ const Dashboard = ({
               />
             </div>
           )}
-
-          {isLastStep ? (
-            <>
-              {currentStep.gameState.Options && (
-                <div className='mb-4'>
-                  <h2
-                    className={
-                      getThemeClass('text-green-300', 'text-cyan-300') +
-                      ' text-xl font-bold mb-2'
-                    }
-                  >
-                    Strategic Options:
-                  </h2>
-                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                    {currentStep.gameState.Options.map((option, index) => (
-                      <TooltipProvider key={index}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className={
-                                getThemeClass(
-                                  'bg-green-800 bg-opacity-40 hover:bg-green-700',
-                                  'bg-cyan-800 bg-opacity-40 hover:bg-cyan-700'
-                                ) +
-                                ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
-                              }
-                              onClick={() => {
-                                handleOptionSelect(option.Description);
-                              }}
-                            >
-                              {getOptionIcon(index)}
-                              <span
-                                className={getThemeClass(
-                                  'text-green-100',
-                                  'text-cyan-100'
-                                )}
-                              >
-                                {option.Description}
-                              </span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            className={
-                              getThemeClass('bg-black', 'bg-gray-800') +
-                              ' p-2 max-w-xs'
-                            }
-                          >
-                            <p className='text-sm'>{option.Outcome}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className='mt-4'>
-                <div
-                  className={
-                    getThemeClass(
-                      'bg-green-800 bg-opacity-40',
-                      'bg-cyan-800 bg-opacity-40'
-                    ) + ' flex items-center rounded-lg overflow-hidden'
-                  }
-                >
-                  <input
-                    type='text'
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    className={
-                      getThemeClass(
-                        'bg-transparent py-2 px-3 text-green-100 placeholder-green-500',
-                        'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
-                      ) + ' flex-grow focus:outline-none'
-                    }
-                    placeholder='Or input your own strategic decision...'
-                  />
-                  <button
-                    onClick={() => handleSendMessage()}
-                    className={
-                      getThemeClass(
-                        'bg-green-600 hover:bg-green-500',
-                        'bg-cyan-600 hover:bg-cyan-500'
-                      ) +
-                      ' text-white font-bold py-2 px-4 transition duration-300 ease-in-out'
-                    }
-                  >
-                    <Send size={20} />
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            !isFirstStep && (
-              <div className='mt-4'>
+        </div>
+        {isLastStep && (
+          <>
+            {currentStep.gameState.Options && (
+              <div className='mb-4'>
                 <h2
                   className={
                     getThemeClass('text-green-300', 'text-cyan-300') +
-                    ' text-lg font-bold mb-2'
+                    ' text-xl font-bold mb-2'
                   }
                 >
-                  Your Decision:
+                  Strategic Options:
                 </h2>
-                <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
-                  {currentStep.userMessage}
-                </p>
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                  {currentStep.gameState.Options.map((option, index) => (
+                    <TooltipProvider key={index}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={
+                              getThemeClass(
+                                'bg-green-800 bg-opacity-40 hover:bg-green-700',
+                                'bg-cyan-800 bg-opacity-40 hover:bg-cyan-700'
+                              ) +
+                              ' p-3 rounded-lg hover:bg-opacity-50 transition duration-200 ease-in-out cursor-pointer'
+                            }
+                            onClick={() => {
+                              handleOptionSelect(option.Description);
+                            }}
+                          >
+                            {getOptionIcon(index)}
+                            <span
+                              className={getThemeClass(
+                                'text-green-100',
+                                'text-cyan-100'
+                              )}
+                            >
+                              {option.Description}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          className={
+                            getThemeClass('bg-black', 'bg-gray-800') +
+                            ' p-2 max-w-xs'
+                          }
+                        >
+                          <p className='text-sm'>{option.Outcome}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                </div>
               </div>
-            )
-          )}
-        </div>
+            )}
+            <div
+              className={
+                getThemeClass(
+                  'bg-green-800 bg-opacity-40',
+                  'bg-cyan-800 bg-opacity-40'
+                ) + ' flex items-center rounded-lg overflow-hidden'
+              }
+            >
+              <input
+                type='text'
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                className={
+                  getThemeClass(
+                    'bg-transparent py-2 px-3 text-green-100 placeholder-green-500',
+                    'bg-transparent py-2 px-3 text-cyan-100 placeholder-cyan-500'
+                  ) + ' flex-grow focus:outline-none'
+                }
+                placeholder='Or input your own strategic decision...'
+              />
+              <button
+                onClick={() => handleSendMessage()}
+                className={
+                  getThemeClass(
+                    'bg-green-600 hover:bg-green-500',
+                    'bg-cyan-600 hover:bg-cyan-500'
+                  ) +
+                  ' text-white font-bold py-2 px-4 transition duration-300 ease-in-out'
+                }
+              >
+                <Send size={20} />
+              </button>
+            </div>
+          </>
+        )}
+        {!isLastStep && !isFirstStep && (
+          <div className='mt-4'>
+            <h2
+              className={
+                getThemeClass('text-green-300', 'text-cyan-300') +
+                ' text-lg font-bold mb-2'
+              }
+            >
+              Your Decision:
+            </h2>
+            <p className={getThemeClass('text-green-100', 'text-cyan-100')}>
+              {currentStep.userMessage}
+            </p>
+          </div>
+        )}
         {renderMetrics(currentStep.gameState.Metrics)}
       </>
     );
@@ -614,20 +611,19 @@ const Dashboard = ({
             >
               New Scenario
             </button>
-            <button
-              onClick={() => {
-                /* Add faucet functionality */
-              }}
-              className={`
+            <Link href='https://docs.galadriel.com/faucet' target='_blank'>
+              <button
+                className={`
         ${getThemeClass(
-          'bg-green-800 hover:bg-green-700 text-green-100',
-          'bg-cyan-800 hover:bg-cyan-700 text-cyan-100'
+          'border-green-800 hover:bg-green-700 text-green-100 text-sm',
+          'border-cyan-800 hover:bg-cyan-700 text-cyan-100 text-sm'
         )}
-        w-full font-semibold py-2 px-4 rounded transition duration-300 ease-in-out
+        w-full font-semibold py-2 px-4 mt-4 rounded transition duration-300 ease-in-out
       `}
-            >
-              Get GAL from faucet
-            </button>
+              >
+                Get GAL from faucet
+              </button>
+            </Link>
           </div>
         </div>
 

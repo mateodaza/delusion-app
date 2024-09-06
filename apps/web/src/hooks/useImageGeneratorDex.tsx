@@ -1,13 +1,12 @@
 import { galadriel } from '@/wagmi';
 import { useState, useCallback, useEffect } from 'react';
+import { createPublicClient, http, parseAbi } from 'viem';
 import {
-  createPublicClient,
-  http,
-  createWalletClient,
-  custom,
-  parseAbi,
-  decodeEventLog,
-} from 'viem';
+  useAccount,
+  useWriteContract,
+  useReadContract,
+  useWaitForTransactionReceipt,
+} from 'wagmi';
 
 const contractABI = parseAbi([
   'function initializeDalleCall(string memory message) public returns (uint)',
@@ -16,54 +15,52 @@ const contractABI = parseAbi([
   'event NewResponseReceived(uint indexed callId, string response)',
 ]);
 
-// const contractAddress = '0xCc10E4380994BD5e0E88b34D5d5234919A24A470'; // lite without proper last response
 const contractAddress = '0xE8AeB4006CAB2cA6f42152Cf7aD42b147c378B5A';
 
 export function useImageGeneratorDex(initialMessageId?: string) {
+  const { address } = useAccount();
   const [images, setImages] = useState<Record<string, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string>('');
   const [publicClient, setPublicClient] = useState<ReturnType<
     typeof createPublicClient
   > | null>(null);
-  const [walletClient, setWalletClient] = useState<ReturnType<
-    typeof createWalletClient
-  > | null>(null);
   const [currentMessageId, setCurrentMessageId] = useState<string | undefined>(
     initialMessageId
   );
   const [currentCallId, setCurrentCallId] = useState<number | null>(null);
 
+  const { writeContract, data: writeData } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({
+      hash: writeData,
+      chainId: galadriel.id,
+    });
+
+  const { data: lastResponse, refetch: refetchLastResponse } = useReadContract({
+    address: contractAddress,
+    abi: contractABI,
+    functionName: 'getLastResponse',
+    account: address,
+  });
+
   useEffect(() => {
-    const initializeClients = async () => {
-      if (typeof window.ethereum !== 'undefined') {
-        const newPublicClient = createPublicClient({
-          chain: galadriel,
-          transport: http(),
-        });
-
-        const newWalletClient = createWalletClient({
-          chain: galadriel,
-          transport: custom(window.ethereum),
-        });
-
-        setPublicClient(newPublicClient);
-        setWalletClient(newWalletClient);
-      } else {
-        console.error(
-          'Ethereum object not found, do you have MetaMask installed?'
-        );
-      }
+    const initializeClient = async () => {
+      const newPublicClient = createPublicClient({
+        chain: galadriel,
+        transport: http(),
+      });
+      setPublicClient(newPublicClient);
     };
 
-    initializeClients();
+    initializeClient();
   }, []);
 
   const checkExistingImage = useCallback(
     async (messageId: string): Promise<string | null> => {
       try {
         const response = await fetch(`/api/check-image?messageId=${messageId}`);
-
         if (response.ok) {
           const data = await response.json();
           return data.imageUrl;
@@ -81,9 +78,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
     try {
       await fetch('/api/save-image', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId, imageUrl }),
       });
     } catch (error) {
@@ -117,12 +112,11 @@ export function useImageGeneratorDex(initialMessageId?: string) {
     async (messageId: string, prompt: string) => {
       setCurrentMessageId(messageId);
 
-      if (!publicClient || !walletClient) {
-        console.error('Clients not initialized');
+      if (!publicClient) {
+        console.error('Public client not initialized');
         return null;
       }
 
-      // Check if image already exists in the database
       const imageExists = await setExistingImage(messageId);
       if (imageExists) {
         return images[messageId];
@@ -132,22 +126,16 @@ export function useImageGeneratorDex(initialMessageId?: string) {
       setGenerationStatus('Initializing image generation...');
 
       try {
-        const [address] = await walletClient.getAddresses();
-
-        setGenerationStatus('Simulating contract call...');
-        const { request } = await publicClient.simulateContract({
+        setGenerationStatus('Sending transaction...');
+        writeContract({
           address: contractAddress,
           abi: contractABI,
           functionName: 'initializeDalleCall',
           args: [prompt],
-          account: address,
         });
 
-        setGenerationStatus('Sending transaction...');
-        const hash = await walletClient.writeContract(request);
-
         setGenerationStatus('Waiting for transaction confirmation...');
-        await publicClient.waitForTransactionReceipt({ hash });
+        // Wait for confirmation is handled by useWaitForTransaction hook
 
         setGenerationStatus(
           'Transaction confirmed. Waiting for image generation...'
@@ -155,12 +143,8 @@ export function useImageGeneratorDex(initialMessageId?: string) {
 
         // Function to check for response
         const checkForResponse = async (): Promise<string> => {
-          const [response, isReady] = (await publicClient.readContract({
-            address: contractAddress,
-            abi: contractABI,
-            functionName: 'getLastResponse',
-            account: address,
-          })) as [string, boolean];
+          await refetchLastResponse();
+          const [response, isReady] = lastResponse as [string, boolean];
 
           if (isReady && response !== '') {
             return response;
@@ -208,7 +192,14 @@ export function useImageGeneratorDex(initialMessageId?: string) {
         return null;
       }
     },
-    [publicClient, walletClient, images, setExistingImage]
+    [
+      publicClient,
+      images,
+      setExistingImage,
+      writeContract,
+      lastResponse,
+      refetchLastResponse,
+    ]
   );
 
   return {
@@ -218,5 +209,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
     generationStatus,
     setCurrentMessageId,
     currentCallId,
+    isConfirming,
+    isConfirmed,
   };
 }

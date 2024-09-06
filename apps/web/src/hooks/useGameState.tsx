@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAccount } from 'wagmi';
 
 interface Message {
   role: string;
@@ -27,6 +28,7 @@ export const useGameState = (
   messageHistory: Message[] | undefined,
   chatId: string | null
 ) => {
+  const { address } = useAccount();
   const [currentStep, setCurrentStep] = useState<Step>({
     index: 0,
     id: '',
@@ -37,7 +39,7 @@ export const useGameState = (
 
   const generateStableId = useCallback(
     (index: number): string => {
-      return `${chatId || 'chat'}_msg_${index}`;
+      return `${address}_${chatId || 'chat'}_msg_${index}`;
     },
     [chatId]
   );
