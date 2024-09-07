@@ -136,7 +136,6 @@ export function useImageGeneratorDex(initialMessageId?: string) {
             account: address,
           })) as [string, boolean];
 
-          console.log({ isReady, response, initialResponse });
           if (isReady && response !== '' && response !== initialResponse[0]) {
             return response;
           }

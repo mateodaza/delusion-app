@@ -8,7 +8,13 @@ import { midnightTheme, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 
 import { config } from '../wagmi';
 
-const client = new QueryClient();
+const client = new QueryClient({
+  defaultOptions: {
+    queries: {
+      structuralSharing: false,
+    },
+  },
+});
 
 function AppContent({ Component, pageProps }: AppProps) {
   return (

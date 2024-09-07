@@ -15,10 +15,17 @@ const RealityChallengeGauge: React.FC<RealityChallengeGaugeProps> = ({
     ) as number[];
     if (numericMetrics.length === 0) return 50; // Default to middle if no numeric metrics
 
-    const average =
-      numericMetrics.reduce((sum, value) => sum + value, 0) /
-      numericMetrics.length;
-    return Math.min(Math.max(average, 0), 100); // Ensure the value is between 0 and 100
+    const sortedMetrics = numericMetrics.sort((a, b) => a - b);
+    const middle = Math.floor(sortedMetrics.length / 2);
+
+    let median;
+    if (sortedMetrics.length % 2 === 0) {
+      median = (sortedMetrics[middle - 1] + sortedMetrics[middle]) / 2;
+    } else {
+      median = sortedMetrics[middle];
+    }
+
+    return Math.min(Math.max(median, 0), 100); // Ensure the value is between 0 and 100
   };
 
   const outcome = calculateOutcome();

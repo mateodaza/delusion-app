@@ -5,7 +5,6 @@ import {
   useReadContract,
   useWriteContract,
   usePublicClient,
-  useWaitForTransactionReceipt,
 } from 'wagmi';
 import {
   Terminal,
@@ -57,7 +56,9 @@ const Dashboard = ({
   const [loading, setIsLoading] = useState(false);
   const { isCyanTheme, toggleTheme } = useTheme();
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({
+    chainId: galadriel.id,
+  });
 
   const {
     data: messageHistory,
@@ -84,41 +85,23 @@ const Dashboard = ({
     isPending: txIsPending,
     writeContract,
   } = useWriteContract();
-  const hashData = useWaitForTransactionReceipt({
-    hash,
-    chainId: galadriel.id,
-  });
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = hashData;
-  const isLoading =
-    loading || isConfirming || messageHistoryLoading || txIsPending;
+  const isLoading = loading || messageHistoryLoading || txIsPending;
 
   useEffect(() => {
-    if (isConfirmed && isCreatingNewChat) {
-      fetchLatestChat().then(() => {
-        setIsCreatingNewChat(false);
-      });
-    }
-  }, [isConfirmed, isCreatingNewChat]);
-
-  useEffect(() => {
-    if (isConfirmed && hash) {
+    if (hash) {
       const updateAfterConfirmation = async () => {
         setLoadingState('fetching');
-        const updatedHistory = await fetchChatHistory();
 
-        if (updatedHistory.length > 0) {
-          const latestChatId = updatedHistory[0].id;
-          setChatId(latestChatId);
-          await refetchMessages();
-        }
-        setIsCreatingNewChat(false);
-        setLoadingState('ready');
+        await publicClient?.waitForTransactionReceipt({
+          hash,
+        });
+        fetchLatestChat();
       };
 
       updateAfterConfirmation();
     }
-  }, [isConfirmed, hash]);
+  }, [hash]);
 
   useEffect(() => {
     if (messageHistory && messageHistory.length >= 3 && currentStep.gameState) {
@@ -192,36 +175,34 @@ const Dashboard = ({
         if (newChatId) {
           setChatId(newChatId);
           await refetchMessages();
+          await fetchChatHistory(); // Update the chat history
         }
       }
     } catch (error) {
       console.error('Failed to fetch latest chat:', error);
+    } finally {
+      setIsCreatingNewChat(false);
+      setLoadingState('ready');
     }
-    // Note: We're not setting the state to 'ready' here.
-    // The useEffect watching messageHistory and currentStep.gameState will handle that.
   };
-
   const handleStartGame = async () => {
     if (isConnected) {
       try {
         setIsCreatingNewChat(true);
         setLoadingState('sending');
+
         await writeContract({
           address: ECON_ADDRESS,
           abi: ECON_ABI,
           functionName: 'startChat',
           args: [
             customScenario
-              ? `${customScenario}.`
+              ? `Start a new game: ${customScenario}. reply with JSON only`
               : 'Start a new game. reply with JSON only',
           ],
         });
-        // The transaction has been sent, but not yet mined
-        setLoadingState('mining');
 
-        setTimeout(() => {
-          fetchChatHistory(true);
-        }, 10000);
+        setLoadingState('mining');
       } catch (error) {
         console.error('Failed to start game:', error);
         setIsCreatingNewChat(false);
@@ -229,6 +210,31 @@ const Dashboard = ({
       }
     }
   };
+
+  useEffect(() => {
+    if (hash && publicClient) {
+      const confirmTransaction = async () => {
+        try {
+          await publicClient.waitForTransactionReceipt({ hash });
+          await fetchLatestChat();
+        } catch (error) {
+          console.error('Error confirming transaction:', error);
+        } finally {
+          setIsCreatingNewChat(false);
+          setLoadingState('ready');
+        }
+      };
+
+      confirmTransaction();
+    }
+  }, [hash, publicClient]);
+
+  useEffect(() => {
+    if (chatId) {
+      refetchMessages();
+    }
+  }, [chatId]);
+
   const handleSendMessage = async (option?: string) => {
     if (isConnected && chatId !== null) {
       try {
@@ -383,7 +389,9 @@ const Dashboard = ({
                   <p
                     className={getThemeClass('text-green-100', 'text-cyan-100')}
                   >
-                    {currentStep.userMessage}
+                    {currentStep.userMessage
+                      ?.replace('reply with JSON only', '')
+                      ?.replace('Start a new game: ', '')}
                   </p>
                 </div>
               </div>
@@ -578,7 +586,7 @@ const Dashboard = ({
         sticky top-0 z-10 py-2 px-4 text-xl font-bold mb-4 rounded-lg
       `}
             >
-              {address ? 'Past Scenarios' : '±?___----__:)'}
+              {address ? 'Your Scenarios' : '±?___----__:)'}
             </h2>
             {address && chatHistory?.length > 0 && (
               <ul className='space-y-2 my-2 overflow-y-auto flex-1'>
@@ -616,6 +624,7 @@ const Dashboard = ({
             </button>
             <Link href='https://docs.galadriel.com/faucet' target='_blank'>
               <button
+                onClick={() => setCustomScenario('')}
                 className={`
         ${getThemeClass(
           'border-green-800 hover:bg-green-700 text-green-100 text-sm',
@@ -710,7 +719,7 @@ const Dashboard = ({
                     text-white font-bold py-4 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg border-2
                   `}
                 >
-                  {isConfirming ? 'Processing...' : 'Enter'}
+                  Enter
                 </button>
                 <p
                   className={`${getThemeClass('text-green-400', 'text-cyan-400')} text-sm italic`}
@@ -738,10 +747,39 @@ const Dashboard = ({
                 {renderCompactStepper()}
                 {renderCurrentMessage()}
               </>
+            ) : messageHistory && messageHistory.length < 3 ? (
+              <div className='text-center'>
+                <div className='text-xl mb-4'>
+                  <Terminal className='inline-block mr-2' />
+                  Initializing your scenario...
+                </div>
+                {messageHistory.length === 2 &&
+                  messageHistory[1].content &&
+                  messageHistory[1].content[0] && (
+                    <div
+                      className={`${getThemeClass('text-green-100', 'text-cyan-100')} text-lg max-w-2xl mx-auto`}
+                    >
+                      <h2
+                        className={`${getThemeClass('text-green-300', 'text-cyan-300')} text-2xl font-bold mb-2`}
+                      >
+                        Your Scenario:
+                      </h2>
+                      <p>
+                        {messageHistory[1].content[0].value
+                          .replace('Start a new game: ', '')
+                          .replace('. reply with JSON only', '')}
+                      </p>
+                    </div>
+                  )}
+                <div
+                  className={`${getThemeClass('text-green-400', 'text-cyan-400')} mt-4`}
+                >
+                  Please wait while we prepare your unique adventure...
+                </div>
+              </div>
             ) : (
               <div className='text-center text-xl'>
                 <Terminal className='inline-block mr-2' />
-                Unexpected state. Please refresh the page.
               </div>
             )}
           </div>
