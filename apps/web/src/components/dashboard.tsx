@@ -242,6 +242,20 @@ const Dashboard = ({
     }
   }, [chatId]);
 
+  useEffect(() => {
+    if (
+      messageHistory &&
+      messageHistory.length > 0 &&
+      messageHistory.length < 3
+    ) {
+      const timer = setTimeout(() => {
+        refetchMessages();
+      }, 5000); // Retry after 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [messageHistory]);
+
   const handleSendMessage = async (option?: string) => {
     if (isConnected && chatId !== null) {
       try {
@@ -337,9 +351,9 @@ const Dashboard = ({
     }
 
     const lastMessage = messageHistory[messageHistory.length - 1];
-    const isWaitingForResponse = lastMessage.role === 'user';
+    const isWaitingForResponse = isLastStep && lastMessage.role === 'user';
 
-    if (isLastStep && isWaitingForResponse) {
+    if (isWaitingForResponse) {
       return (
         <div className='text-center'>
           <div className='text-xl mb-4'>
@@ -734,18 +748,20 @@ const Dashboard = ({
                   Hello friend
                   <br />
                   <br />
-                  Dare to challenge any reality? be our guest.
+                  Dare to challenge any reality? Be our guest.
+                  <br />
+                  Create a journey and check your metrics,
+                  <br /> See how they evolve.
+                  <br />
                   <br />
                   This game has no end.
-                  <br />
-                  Check your metrics and see how they evolve.
                   <br />
                   <br />
                 </p>
                 <textarea
                   value={customScenario}
                   onChange={(e) => setCustomScenario(e.target.value)}
-                  placeholder='Describe your reality >>insert text<<'
+                  placeholder='Describe your reality...'
                   className={`
                     ${getThemeClass(
                       'bg-green-800 bg-opacity-40 text-green-100 placeholder-green-500',
@@ -768,9 +784,11 @@ const Dashboard = ({
                   Enter
                 </button>
                 <p
-                  className={`${getThemeClass('text-green-400', 'text-cyan-400')} text-sm italic`}
+                  className={`${getThemeClass('text-green-400', 'text-cyan-400')} text-sm italic text-center`}
                 >
-                  Hint: We will challenge any scenario you propose. Be creative.
+                  We will challenge any scenario you propose. Be creative.{' '}
+                  <br />
+                  Winning or losing depends entirely on you
                 </p>
               </div>
             ) : loadingState === 'idle' ? (

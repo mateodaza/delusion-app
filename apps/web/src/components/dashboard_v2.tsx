@@ -791,7 +791,7 @@ const Dashboard = ({ ABI, ADDRESS }: { ABI: any; ADDRESS: `0x${string}` }) => {
                 >
                   Hello friend
                   <br /> <br />
-                  Dare to challenge any reality? be our guest. <br /> This game
+                  Dare to challenge any reality? Be our guest. <br /> This game
                   has no end.
                   <br /> Check your metrics and see how they evolve.
                   <br />

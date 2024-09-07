@@ -170,7 +170,7 @@ export function useImageGeneratorDex(initialMessageId?: string) {
                   'Image generation timed out. Please try again.'
                 );
                 setIsGenerating(false);
-                reject(new Error('Timeout waiting for image generation'));
+                // reject(new Error('Timeout waiting for image generation'));
               }
             }
           }, 5000); // Poll every 5 seconds
