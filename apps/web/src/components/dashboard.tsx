@@ -172,11 +172,11 @@ const Dashboard = ({
       if (logs && logs.length > 0) {
         const latestChat = logs[logs.length - 1];
         const newChatId = latestChat.args?.chatId?.toString();
-        if (newChatId) {
+        if (newChatId && isCreatingNewChat) {
           setChatId(newChatId);
           await refetchMessages();
-          await fetchChatHistory(); // Update the chat history
         }
+        await fetchChatHistory(); // Update the chat history
       }
     } catch (error) {
       console.error('Failed to fetch latest chat:', error);
@@ -185,6 +185,7 @@ const Dashboard = ({
       setLoadingState('ready');
     }
   };
+
   const handleStartGame = async () => {
     if (isConnected) {
       try {
@@ -216,7 +217,13 @@ const Dashboard = ({
       const confirmTransaction = async () => {
         try {
           await publicClient.waitForTransactionReceipt({ hash });
-          await fetchLatestChat();
+          // Only fetch the latest chat if we're creating a new chat
+          if (isCreatingNewChat) {
+            await fetchLatestChat();
+          } else {
+            // If we're not creating a new chat, just refetch the messages for the current chat
+            await refetchMessages();
+          }
         } catch (error) {
           console.error('Error confirming transaction:', error);
         } finally {
@@ -227,7 +234,7 @@ const Dashboard = ({
 
       confirmTransaction();
     }
-  }, [hash, publicClient]);
+  }, [hash, publicClient, isCreatingNewChat]);
 
   useEffect(() => {
     if (chatId) {
@@ -250,6 +257,7 @@ const Dashboard = ({
         setUserInput('');
         setSelectedOption(null);
         setLoadingState('mining');
+        // Don't update chatId here, as we're still in the same chat
       } catch (error) {
         console.error('Failed to send message:', error);
         setLoadingState('ready');
@@ -319,10 +327,43 @@ const Dashboard = ({
   };
 
   const renderCurrentMessage = () => {
+    if (!messageHistory || messageHistory.length < 3) {
+      return (
+        <div className='text-center text-xl'>
+          <Terminal className='inline-block mr-2' />
+          Initializing your scenario...
+        </div>
+      );
+    }
+
+    const lastMessage = messageHistory[messageHistory.length - 1];
+    const isWaitingForResponse = lastMessage.role === 'user';
+
+    if (isLastStep && isWaitingForResponse) {
+      return (
+        <div className='text-center'>
+          <div className='text-xl mb-4'>
+            <Terminal className='inline-block mr-2' />
+            Waiting for response...
+          </div>
+          <div
+            className={`${getThemeClass('text-green-100', 'text-cyan-100')} text-lg max-w-2xl mx-auto`}
+          >
+            <h2
+              className={`${getThemeClass('text-green-300', 'text-cyan-300')} text-2xl font-bold mb-2`}
+            >
+              Your Last Decision:
+            </h2>
+            <p>{lastMessage.content[0].value}</p>
+          </div>
+        </div>
+      );
+    }
+
     if (loadingState !== 'ready' || !currentStep.gameState) {
       return (
         <div className='text-center text-xl'>
-          <Terminal className='inline-block mr-2' />x
+          <Terminal className='inline-block mr-2' />
           {loadingState === 'idle' && 'Initializing DELUSION interface...'}
           {loadingState === 'sending' && 'Sending your decision...'}
           {loadingState === 'mining' && 'Mining transaction...'}
