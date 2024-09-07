@@ -580,14 +580,17 @@ const Dashboard = ({
       `}
         >
           <div className='flex-1 flex flex-col overflow-hidden'>
-            <h2
-              className={`
-        ${getThemeClass('bg-green-900 text-green-300', 'bg-cyan-900 text-cyan-300')}
-        sticky top-0 z-10 py-2 px-4 text-xl font-bold mb-4 rounded-lg
-      `}
-            >
-              {address ? 'Your Scenarios' : '±?___----__:)'}
-            </h2>
+            {address && chatHistory?.length > 0 && (
+              <h2
+                className={`
+          ${getThemeClass('bg-green-900 text-green-300', 'bg-cyan-900 text-cyan-300')}
+          sticky top-0 z-10 py-2 px-4 text-xl font-bold mb-4 rounded-lg
+        `}
+              >
+                Your Scenarios
+              </h2>
+            )}
+
             {address && chatHistory?.length > 0 && (
               <ul className='space-y-2 my-2 overflow-y-auto flex-1'>
                 {chatHistory.map((chat: any) => (
@@ -611,7 +614,10 @@ const Dashboard = ({
           {/* Actions Section */}
           <div className='border-t border-opacity-20 pt-4 space-y-3 mt-auto'>
             <button
-              onClick={() => setChatId(null)}
+              onClick={() => {
+                setChatId(null);
+                setCustomScenario('');
+              }}
               className={`
         ${getThemeClass(
           'bg-green-800 hover:bg-green-700 text-green-100',
@@ -624,7 +630,6 @@ const Dashboard = ({
             </button>
             <Link href='https://docs.galadriel.com/faucet' target='_blank'>
               <button
-                onClick={() => setCustomScenario('')}
                 className={`
         ${getThemeClass(
           'border-green-800 hover:bg-green-700 text-green-100 text-sm',
